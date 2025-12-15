@@ -232,7 +232,7 @@ Available models:
         'fliplr': 0.5,       # Horizontal flip (enabled)
         'mosaic': 1.0,       # Mosaic augmentation (multi-scale composition)
         'mixup': 0.2,        # Mixup (↑ helps with hard negatives and false positives)
-        'copy_paste': 0.2,   # Copy-paste (↑ paste fire into empty regions)
+        'copy_paste': 0.4,   # Copy-paste (↑ paste fire into empty regions)
         'erasing': 0.4,      # Random erasing (occlusion robustness)
         
         # Validation

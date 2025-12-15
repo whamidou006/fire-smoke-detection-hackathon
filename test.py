@@ -1,6 +1,8 @@
 """
 Fire/Smoke Detection Model Testing and Evaluation
 Tests trained models and compares against baselines
+
+Note: For tiling inference on high-resolution images, use tiling_inference.py
 """
 from ultralytics import YOLO
 import argparse
