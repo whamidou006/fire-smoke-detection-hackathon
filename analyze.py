@@ -3,6 +3,7 @@
 Training Analysis & Visualization
 Generates comprehensive plots comparing training progress with baselines
 Can also run model testing by calling test.py
+Supports watch mode for continuous updates during training
 """
 import pandas as pd
 import matplotlib
@@ -13,6 +14,8 @@ from pathlib import Path
 import sys
 import argparse
 import subprocess
+import time
+from datetime import datetime
 from ultralytics import YOLO
 
 
@@ -276,7 +279,8 @@ Cls: {df['train/cls_loss'].iloc[0]:.3f}→{df['train/cls_loss'].iloc[-1]:.3f}
         'current_epoch': current_epoch,
         'current_map': current_map,
         'best_epoch': best_epoch,
-        'best_map': best_map
+        'best_map': best_map,
+        'total_epochs': len(df)
     }
 
 
@@ -292,6 +296,12 @@ Examples:
   # Skip baseline comparison (faster)
   python analyze.py --results runs/train/results.csv --no-baselines
   
+  # Watch mode - continuous updates during training
+  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch
+  
+  # Watch mode with custom interval
+  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch --interval 60
+  
   # Run model testing
   python analyze.py --test runs/train/weights/best.pt
   
@@ -305,6 +315,8 @@ Examples:
     parser.add_argument('--no-baselines', action='store_true', help='Skip baseline evaluation')
     parser.add_argument('--test', type=str, metavar='MODEL', help='Run model testing (calls test.py)')
     parser.add_argument('--compare', action='store_true', help='Compare with baselines when testing')
+    parser.add_argument('--watch', action='store_true', help='Continuously update visualization during training')
+    parser.add_argument('--interval', type=int, default=30, help='Update interval in seconds for watch mode (default: 30)')
     
     args = parser.parse_args()
     
@@ -332,17 +344,28 @@ Examples:
     
     # Analysis mode - require results file
     if not args.results:
-        # Try to find results automatically
-        default_paths = [
-            '../runs/train_alertcal/yolov8n_optimized_v1/results.csv',
-            'runs/train/results.csv',
-            '../runs/train/results.csv',
-        ]
-        
-        for path in default_paths:
-            if Path(path).exists():
-                args.results = path
-                break
+        # Try to find most recent results automatically
+        runs_dir = Path('runs')
+        if runs_dir.exists():
+            # Find all results.csv files
+            results_files = list(runs_dir.glob('*/results.csv'))
+            if results_files:
+                # Sort by modification time, get most recent
+                latest = max(results_files, key=lambda p: p.stat().st_mtime)
+                args.results = str(latest)
+                print(f"ℹ️  Auto-detected latest results: {args.results}")
+            else:
+                # Try legacy paths
+                default_paths = [
+                    '../runs/train_alertcal/yolov8n_optimized_v1/results.csv',
+                    'runs/train/results.csv',
+                    '../runs/train/results.csv',
+                ]
+                
+                for path in default_paths:
+                    if Path(path).exists():
+                        args.results = path
+                        break
         
         if not args.results:
             print("❌ ERROR: No results file found. Please specify with --results")
@@ -357,6 +380,66 @@ Examples:
         print(f"❌ ERROR: Results file not found: {args.results}")
         sys.exit(1)
     
+    # Watch mode - continuous updates
+    if args.watch:
+        print("="*80)
+        print("👁️  WATCH MODE - Continuous Training Monitoring")
+        print("="*80)
+        print(f"\nResults: {args.results}")
+        print(f"Output:  {args.output}")
+        print(f"Interval: {args.interval}s")
+        print("\nPress Ctrl+C to stop\n")
+        
+        last_modified = 0
+        iteration = 0
+        baselines = {}  # Initialize baselines outside loop
+        baselines_loaded = False
+        
+        # Load baselines once at the start
+        if not args.no_baselines:
+            print("📊 Loading baseline models (one-time evaluation)...")
+            try:
+                baselines = load_baseline_metrics(args.dataset)
+                baselines_loaded = True
+                print("✓ Baselines loaded successfully\n")
+            except Exception as e:
+                print(f"⚠️  Baseline evaluation failed: {e}")
+                print("   Continuing without baselines...\n")
+        
+        try:
+            while True:
+                current_modified = results_path.stat().st_mtime
+                
+                # Only update if file has changed
+                if current_modified != last_modified:
+                    iteration += 1
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    
+                    print(f"[{timestamp}] Update #{iteration}: Generating visualization...")
+                    
+                    try:
+                        stats = create_visualization(
+                            results_csv=args.results,
+                            output_path=args.output,
+                            baselines=baselines,  # Use pre-loaded baselines
+                            show_baselines=baselines_loaded
+                        )
+                        
+                        print(f"  ✓ Epoch {stats['current_epoch']}/{stats['total_epochs']}, "
+                              f"mAP={stats['current_map']:.4f}, Best={stats['best_map']:.4f} @ Epoch {stats['best_epoch']}")
+                        
+                    except Exception as e:
+                        print(f"  ✗ Error: {e}")
+                    
+                    last_modified = current_modified
+                
+                time.sleep(args.interval)
+                
+        except KeyboardInterrupt:
+            print("\n\n✋ Watch mode stopped by user")
+            sys.exit(0)
+    
+    # Single-run mode
     print("="*80)
     print("📊 TRAINING ANALYSIS")
     print("="*80)

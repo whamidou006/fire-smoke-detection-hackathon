@@ -8,6 +8,8 @@ import torch
 import sys
 import argparse
 from pathlib import Path
+import subprocess
+import os
 
 # Model configurations: name -> (path, batch_size)
 MODEL_CONFIGS = {
@@ -18,6 +20,68 @@ MODEL_CONFIGS = {
     'x': ('yolov8x.pt', 24),
     'pretrain': ('/home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/weights/pretrain_yolov8.pt', 40),
 }
+
+def download_model(model_name):
+    """
+    Download YOLOv8 model using curl if not already present.
+    This handles SSL issues that occur with the default Ultralytics downloader.
+    
+    Args:
+        model_name: Name of the model file (e.g., 'yolov8s.pt')
+    
+    Returns:
+        Path to the downloaded model or None if download fails
+    """
+    # If it's a custom path (contains /), don't try to download
+    if '/' in model_name:
+        if not os.path.exists(model_name):
+            print(f"❌ Custom model not found: {model_name}")
+            return None
+        return model_name
+    
+    # Check if model already exists locally
+    script_dir = Path(__file__).parent
+    local_path = script_dir / model_name
+    
+    if local_path.exists():
+        print(f"✓ Model found locally: {local_path}")
+        return str(local_path)
+    
+    # Check Ultralytics cache
+    cache_dir = Path.home() / '.config' / 'Ultralytics'
+    cached_path = cache_dir / model_name
+    if cached_path.exists():
+        print(f"✓ Model found in cache: {cached_path}")
+        return str(cached_path)
+    
+    # Download using curl (more reliable than urllib with SSL issues)
+    print(f"📥 Downloading {model_name} (21.5MB)...")
+    url = f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{model_name}"
+    
+    try:
+        # Use curl with redirect following
+        result = subprocess.run(
+            ['curl', '-L', '-o', str(local_path), url],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0 and local_path.exists():
+            file_size_mb = local_path.stat().st_size / (1024 * 1024)
+            print(f"✓ Successfully downloaded {model_name} ({file_size_mb:.1f}MB)")
+            return str(local_path)
+        else:
+            print(f"❌ Download failed: {result.stderr}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        print(f"❌ Download timeout after 5 minutes")
+        return None
+    except Exception as e:
+        print(f"❌ Download error: {e}")
+        return None
+
 
 def main():
     """Main training function with all configurations"""
@@ -93,15 +157,27 @@ Available models:
     print(f"📊 Batch Size: {BATCH_SIZE}")
     
     # ============================================================================
+    # DOWNLOAD MODEL IF NEEDED
+    # ============================================================================
+    # Ensure model is downloaded before loading
+    downloaded_path = download_model(MODEL_PATH)
+    if downloaded_path is None:
+        print(f"\n❌ Failed to download/locate model: {MODEL_PATH}")
+        print(f"\nAvailable models: n, s, m, l, x, pretrain")
+        print(f"Or provide a custom path to an existing .pt file")
+        sys.exit(1)
+    
+    # Use the downloaded/verified path
+    MODEL_PATH = downloaded_path
+    
+    # ============================================================================
     # LOAD MODEL
     # ============================================================================
     try:
         model = YOLO(MODEL_PATH)
-        print(f"✓ Model loaded successfully")
+        print(f"✓ Model loaded successfully from {MODEL_PATH}")
     except Exception as e:
         print(f"❌ ERROR loading model: {e}")
-        print(f"\nIf model not found, download with:")
-        print(f"wget https://github.com/ultralytics/assets/releases/download/v8.3.0/{MODEL_PATH}")
         sys.exit(1)
     
     # ============================================================================
@@ -135,9 +211,9 @@ Available models:
         'warmup_epochs': 10,    # Longer warmup
         'warmup_momentum': 0.8,
         
-        # Loss weights (recall-focused - prioritize detection over localization)
-        'cls': 0.5,   # Classification loss weight (increased from 0.3)
-        'box': 5.0,   # Box regression loss weight (reduced from 7.5)
+        # Loss weights (false positive reduction - stricter classification)
+        'cls': 0.7,   # Classification loss weight (↑ from 0.5 - penalize FP more)
+        'box': 4.0,   # Box regression loss weight (↓ from 5.0 - less localization focus)
         'dfl': 1.5,   # Distribution focal loss weight
         
         # Data augmentation (enhanced for fire/smoke robustness)
@@ -152,8 +228,8 @@ Available models:
         'flipud': 0.0,       # Vertical flip (disabled - smoke rises)
         'fliplr': 0.5,       # Horizontal flip (enabled)
         'mosaic': 1.0,       # Mosaic augmentation
-        'mixup': 0.15,       # Mixup (helps with hard negatives)
-        'copy_paste': 0.1,   # Copy-paste (paste fire into empty regions)
+        'mixup': 0.2,        # Mixup (↑ helps with hard negatives and false positives)
+        'copy_paste': 0.2,   # Copy-paste (↑ paste fire into empty regions)
         'erasing': 0.4,      # Random erasing (occlusion robustness)
         
         # Validation
