@@ -174,9 +174,9 @@ Example output:
 ```
 Model                      Size   Params  mAP@0.5  Prec    Recall
 ─────────────────────────────────────────────────────────────────
-Current Best               83.6M   43.6M   0.4149  0.6461  0.3598
-Your Model (Best)           6.2M    3.2M   0.2958  0.4534  0.3150
-Pretrain YOLOv8            83.6M   43.6M   0.1944  0.3575  0.1650
+current_best.pt            83.6M   43.6M   0.4149  0.6461  0.3598
+pretrain_yolov8.pt         83.6M   43.6M   0.1944  0.3575  0.1650
+trained_model.pt            6.2M    3.2M   0.XXXX  0.XXXX  0.XXXX
 ```
 
 ## Output Structure
