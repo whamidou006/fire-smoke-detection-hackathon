@@ -111,9 +111,9 @@ Available models:
         # Dataset
         'data': 'dataset.yaml',
         
-        # Training duration
-        'epochs': 150,
-        'patience': 50,
+        # Training duration (extended for better convergence)
+        'epochs': 200,
+        'patience': 75,
         
         # Image and batch
         'imgsz': 640,
@@ -127,38 +127,39 @@ Available models:
         'exist_ok': True,
         'save_period': 10,
         
-        # Optimizer (AdamW for better convergence)
+        # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
-        'lr0': 0.001,
-        'lrf': 0.01,
-        'weight_decay': 0.0005,
-        'warmup_epochs': 5,
+        'lr0': 0.002,        # Increased for faster convergence
+        'lrf': 0.001,        # Lower final LR for fine-tuning
+        'weight_decay': 0.001,  # Stronger regularization
+        'warmup_epochs': 10,    # Longer warmup
         'warmup_momentum': 0.8,
         
-        # Loss weights (recall-focused for fire/smoke detection)
-        'cls': 0.3,   # Classification loss weight
-        'box': 7.5,   # Box regression loss weight
+        # Loss weights (recall-focused - prioritize detection over localization)
+        'cls': 0.5,   # Classification loss weight (increased from 0.3)
+        'box': 5.0,   # Box regression loss weight (reduced from 7.5)
         'dfl': 1.5,   # Distribution focal loss weight
         
-        # Data augmentation (conservative for smoke/fire)
-        'hsv_h': 0.01,       # Hue variation
-        'hsv_s': 0.4,        # Saturation variation
-        'hsv_v': 0.3,        # Value/brightness variation
-        'degrees': 0.0,      # Rotation (disabled - smoke orientation matters)
-        'translate': 0.05,   # Translation
-        'scale': 0.2,        # Scaling
-        'shear': 0.0,        # Shear (disabled)
-        'perspective': 0.0,  # Perspective (disabled)
+        # Data augmentation (enhanced for fire/smoke robustness)
+        'hsv_h': 0.015,      # Hue variation (fire color variations)
+        'hsv_s': 0.6,        # Saturation variation (smoke density, lighting)
+        'hsv_v': 0.5,        # Value/brightness (day/night, shadows)
+        'degrees': 5.0,      # Small rotation (smoke can tilt slightly)
+        'translate': 0.1,    # Translation (more position variation)
+        'scale': 0.5,        # Scaling (fire appears at various scales)
+        'shear': 0.0,        # Shear (disabled - shape matters)
+        'perspective': 0.001,# Perspective (camera angles)
         'flipud': 0.0,       # Vertical flip (disabled - smoke rises)
         'fliplr': 0.5,       # Horizontal flip (enabled)
         'mosaic': 1.0,       # Mosaic augmentation
-        'mixup': 0.0,        # Mixup (disabled)
-        'copy_paste': 0.0,   # Copy-paste (disabled)
+        'mixup': 0.15,       # Mixup (helps with hard negatives)
+        'copy_paste': 0.1,   # Copy-paste (paste fire into empty regions)
+        'erasing': 0.4,      # Random erasing (occlusion robustness)
         
         # Validation
         'val': True,
         'plots': True,
-        'close_mosaic': 15,  # Disable mosaic last 15 epochs
+        'close_mosaic': 20,  # Disable mosaic last 20 epochs
         
         # Performance
         'amp': True,         # Automatic Mixed Precision
