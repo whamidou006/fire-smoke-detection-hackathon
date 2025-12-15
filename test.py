@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 
-def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=False):
+def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=False, multi_scale=False):
     """
     Test a single model and return detailed metrics
     
@@ -19,6 +19,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
         conf: Confidence threshold
         iou: IoU threshold for NMS
         save_json: Whether to save results in COCO JSON format
+        multi_scale: Enable multi-scale validation (Test-Time Augmentation)
     
     Returns:
         dict: Evaluation metrics
@@ -42,10 +43,12 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     
     # Run validation
     print(f"\n🔄 Running validation...")
-    print(f"  Dataset:    {data_yaml}")
-    print(f"  Batch size: {batch}")
-    print(f"  Confidence: {conf}")
-    print(f"  IoU:        {iou}")
+    print(f"  Dataset:     {data_yaml}")
+    print(f"  Batch size:  {batch}")
+    print(f"  Confidence:  {conf}")
+    print(f"  IoU:         {iou}")
+    if multi_scale:
+        print(f"  Multi-scale: ✅ ENABLED (Test-Time Augmentation)")
     
     results = model.val(
         data=data_yaml,
@@ -56,7 +59,8 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
         workers=0,
         save_json=save_json,
         plots=True,
-        verbose=True
+        verbose=True,
+        augment=multi_scale  # Enable Test-Time Augmentation
     )
     
     # Extract metrics
@@ -87,7 +91,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     return metrics
 
 
-def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2):
+def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_scale=False):
     """
     Compare multiple models side-by-side
     
@@ -113,7 +117,8 @@ def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2):
             continue
         
         try:
-            results = test_model(model_path, data_yaml, batch, conf, iou)
+            results = test_model(model_path, data_yaml, batch, conf, iou, 
+                               save_json=False, multi_scale=multi_scale)
             all_results[name] = results
         except Exception as e:
             print(f"\n❌ Error testing {name}: {e}")
@@ -162,6 +167,8 @@ def main():
                         help='Compare with baseline models')
     parser.add_argument('--save-json', action='store_true',
                         help='Save results in COCO JSON format')
+    parser.add_argument('--multi-scale', action='store_true',
+                        help='Enable multi-scale validation (Test-Time Augmentation)')
     
     args = parser.parse_args()
     
@@ -206,7 +213,8 @@ def main():
             return
         
         # Run comparison
-        results = compare_models(models_to_compare, args.data, args.batch, args.conf, args.iou)
+        results = compare_models(models_to_compare, args.data, args.batch, 
+                               args.conf, args.iou, args.multi_scale)
         
         # Save results
         import json
@@ -229,7 +237,8 @@ def main():
             return
         
         # Test single model
-        results = test_model(args.model, args.data, args.batch, args.conf, args.iou, args.save_json)
+        results = test_model(args.model, args.data, args.batch, args.conf, args.iou, 
+                            args.save_json, args.multi_scale)
         
         # Save results
         import json

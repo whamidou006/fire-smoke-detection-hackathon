@@ -101,10 +101,14 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     ax1 = fig.add_subplot(gs[0, :2])
     
     # Raw and smoothed data
-    ax1.plot(df['epoch'], df['metrics/mAP50(B)'], 'b-', alpha=0.3, label='Raw')
+    ax1.plot(df['epoch'], df['metrics/mAP50(B)'], 'b-', alpha=0.3, label='Raw', linewidth=1)
+    
+    # Smoothed data - handle NaN by dropping them
     window = 5
     rolling = df['metrics/mAP50(B)'].rolling(window=window, center=True).mean()
-    ax1.plot(df['epoch'], rolling, 'b-', linewidth=2.5, label=f'{window}-epoch average')
+    # Only plot where rolling average is valid (no NaN)
+    valid_mask = ~rolling.isna()
+    ax1.plot(df['epoch'][valid_mask], rolling[valid_mask], 'b-', linewidth=2.5, label=f'{window}-epoch average')
     
     # Baseline lines
     if show_baselines and baselines:
@@ -133,12 +137,18 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     # ========================================================================
     ax2 = fig.add_subplot(gs[0, 2])
     
-    ax2.plot(df['epoch'], df['metrics/precision(B)'], 'g-', alpha=0.5, label='Precision')
-    ax2.plot(df['epoch'], df['metrics/recall(B)'], 'r-', alpha=0.5, label='Recall')
+    ax2.plot(df['epoch'], df['metrics/precision(B)'], 'g-', alpha=0.5, linewidth=1, label='Precision')
+    ax2.plot(df['epoch'], df['metrics/recall(B)'], 'r-', alpha=0.5, linewidth=1, label='Recall')
     
-    # Smoothed
-    ax2.plot(df['epoch'], df['metrics/precision(B)'].rolling(window, center=True).mean(), 'g-', linewidth=2)
-    ax2.plot(df['epoch'], df['metrics/recall(B)'].rolling(window, center=True).mean(), 'r-', linewidth=2)
+    # Smoothed - handle NaN values
+    prec_rolling = df['metrics/precision(B)'].rolling(window, center=True).mean()
+    rec_rolling = df['metrics/recall(B)'].rolling(window, center=True).mean()
+    
+    prec_valid = ~prec_rolling.isna()
+    rec_valid = ~rec_rolling.isna()
+    
+    ax2.plot(df['epoch'][prec_valid], prec_rolling[prec_valid], 'g-', linewidth=2)
+    ax2.plot(df['epoch'][rec_valid], rec_rolling[rec_valid], 'r-', linewidth=2)
     
     # Baseline lines
     if show_baselines and baselines:
@@ -307,6 +317,9 @@ Examples:
   
   # Compare multiple models
   python analyze.py --test runs/train/weights/best.pt --compare
+  
+  # Test with multi-scale validation (Test-Time Augmentation)
+  python analyze.py --test runs/train/weights/best.pt --compare --multi-scale
         """
     )
     parser.add_argument('--results', type=str, help='Path to results.csv file')
@@ -315,6 +328,7 @@ Examples:
     parser.add_argument('--no-baselines', action='store_true', help='Skip baseline evaluation')
     parser.add_argument('--test', type=str, metavar='MODEL', help='Run model testing (calls test.py)')
     parser.add_argument('--compare', action='store_true', help='Compare with baselines when testing')
+    parser.add_argument('--multi-scale', action='store_true', help='Enable multi-scale validation when testing')
     parser.add_argument('--watch', action='store_true', help='Continuously update visualization during training')
     parser.add_argument('--interval', type=int, default=30, help='Update interval in seconds for watch mode (default: 30)')
     
@@ -333,6 +347,8 @@ Examples:
         cmd = [sys.executable, str(test_script), '--model', args.test, '--data', args.dataset]
         if args.compare:
             cmd.append('--compare')
+        if args.multi_scale:
+            cmd.append('--multi-scale')
         
         try:
             subprocess.run(cmd, check=True)
