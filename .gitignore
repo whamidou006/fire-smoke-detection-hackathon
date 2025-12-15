@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Training outputs
+runs/
+*.pt
+*.onnx
+*.engine
+*.tflite
+
+# Results and logs
+results.csv
+*.log
+*.png
+*.jpg
+*.jpeg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dataset (don't upload actual data)
+data/
+datasets/
+images/
+labels/
+
+# Temporary files
+*.tmp
+*.bak

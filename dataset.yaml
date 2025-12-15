@@ -1,0 +1,18 @@
+# AlertCalifornia Fire/Smoke Detection Dataset Configuration
+# Dataset: Fire_data_v2_yolo_with_blank_images_and_false_positives
+# Total: 15,323 train images (7,269 with objects, 8,054 negative samples)
+#        382 test images (292 with objects, 90 negative samples)
+# Classes: smoke (94%), fire (6%)
+
+# Dataset path (absolute)
+path: /home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/data/Fire_data_v2_yolo_with_blank_images_and_false_positives
+
+# Splits
+train: train/images  # 15,323 images
+val: test/images     # 382 images (using test as validation)
+
+# Classes
+nc: 2  # number of classes
+names:
+  0: smoke
+  1: fire
