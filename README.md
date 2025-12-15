@@ -1,113 +1,119 @@
 # Fire/Smoke Detection Training Framework
 
-Minimal, production-ready training framework for AlertCalifornia fire/smoke detection using YOLOv8.
+Production-ready training framework for AlertCalifornia fire/smoke detection using YOLOv8.
 
-## 📁 Structure (Only 4 Files Needed!)
+## Project Structure
 
 ```
 fire_smoke_training/
-├── train.py           # Training script with all model options
+├── train.py           # Training script with model selection
 ├── dataset.yaml       # Dataset configuration
 ├── analyze.py         # Training analysis and visualization
-├── test.py            # Model testing and comparison
-└── README.md          # This file
+├── test.py            # Model evaluation and comparison
+└── README.md          # Documentation
 ```
 
-## ⚡ Quick Reference
+## Quick Reference
 
+### Training
 ```bash
-# TRAINING
-python train.py                    # YOLOv8n (default, fastest)
-python train.py --model s          # YOLOv8s (better accuracy)
-python train.py --model l          # YOLOv8l (match baseline architecture)
-python train.py --model pretrain   # Continue from pretrain_yolov8.pt
+python train.py                    # YOLOv8n (default)
+python train.py --model s          # YOLOv8s
+python train.py --model l          # YOLOv8l
+python train.py --model pretrain   # Continue from pretrained model
 python train.py -m l -b 32         # Custom batch size
+```
 
-# TESTING
-python test.py --model path/to/best.pt           # Single model
-python test.py --model path/to/best.pt --compare # vs baselines
+### Testing
+```bash
+python test.py --model path/to/best.pt           # Evaluate single model
+python test.py --model path/to/best.pt --compare # Compare with baselines
+```
 
-# ANALYSIS
-python analyze.py                                # Auto-detect & visualize
+### Analysis
+```bash
+python analyze.py                                # Auto-detect results and visualize
 python analyze.py --test path/to/best.pt --compare
 ```
 
-## 🚀 Quick Start
+## Getting Started
 
-### 1. Train a Model
+### Training a Model
 
 ```bash
-# Train with YOLOv8n (fastest, smallest - default)
+# Train with YOLOv8n (default)
 python train.py
 
-# Train with YOLOv8s (better accuracy)
+# Train with YOLOv8s
 python train.py --model s
 
-# Train with YOLOv8l (same architecture as baseline)
+# Train with YOLOv8l
 python train.py --model l
 
-# Train from hackathon pretrained model
+# Continue from pretrained model
 python train.py --model pretrain
 
-# Custom batch size
+# Specify custom batch size
 python train.py --model l --batch 32
 
-# Train with custom model file
+# Use custom model weights
 python train.py --model /path/to/custom.pt --batch 64
 ```
 
-### 2. Analyze Training Progress
+### Analyzing Training Progress
 
 ```bash
 # Generate visualization with baseline comparison
 python analyze.py --results ../runs/train_alertcal/yolov8n_optimized_v1/results.csv
 
-# Quick analysis without baselines (faster)
+# Analysis without baselines
 python analyze.py --results ../runs/train_alertcal/yolov8n_optimized_v1/results.csv --no-baselines
 
 # Auto-detect results file
 python analyze.py
 ```
 
-### 3. Test Your Model
+### Evaluating Models
 
 ```bash
 # Test single model
 python test.py --model ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt
 
-# Compare with baselines
+# Compare with baseline models
 python test.py --model ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt --compare
 
-# Or use analyze.py as shortcut
+# Integrated testing and analysis
 python analyze.py --test ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt --compare
 ```
 
-## 📊 Model Options
+## Model Options
 
-### Available Pretrained Models
+### Available Models
 
-| Option | Model | Size | Parameters | Batch Size | When to Use |
-|--------|-------|------|------------|------------|-------------|
-| 1 ✓ | yolov8n.pt | 6 MB | 3.2M | 128 | Fast training, mobile deployment |
-| 2 | yolov8s.pt | 22 MB | 11.2M | 96-112 | Better accuracy, still fast |
-| 3 | yolov8m.pt | 52 MB | 25.9M | 48-64 | Balanced performance |
-| 4 | yolov8l.pt | 87 MB | 43.7M | 32-48 | High accuracy, fair baseline comparison |
-| 5 | yolov8x.pt | 136 MB | 68.2M | 16-32 | Maximum accuracy |
-| 6 | pretrain_yolov8.pt | 84 MB | 43.6M | 32-48 | Hackathon baseline (YOLOv8l) |
+| Model | Size | Parameters | Batch Size | Use Case |
+|-------|------|------------|------------|----------|
+| yolov8n | 6 MB | 3.2M | 128 | Fast training, mobile deployment |
+| yolov8s | 22 MB | 11.2M | 96 | Better accuracy, balanced speed |
+| yolov8m | 52 MB | 25.9M | 56 | Balanced performance |
+| yolov8l | 87 MB | 43.7M | 40 | High accuracy, baseline comparison |
+| yolov8x | 136 MB | 68.2M | 24 | Maximum accuracy |
+| pretrain_yolov8.pt | 84 MB | 43.6M | 40 | Hackathon baseline (YOLOv8l) |
 
-### Baseline Performance (Test Set: 382 images)
+### Baseline Performance
+
+Test set: 382 images
 
 - **current_best.pt**: mAP@0.5 = 0.4149, Precision = 0.6461, Recall = 0.3598
 - **pretrain_yolov8.pt**: mAP@0.5 = 0.1944, Precision = 0.3575, Recall = 0.1650
-- **Target Goal**: mAP@0.5 ≥ 0.60, Precision ≥ 0.60, Recall ≥ 0.70
+- **Target**: mAP@0.5 ≥ 0.60, Precision ≥ 0.60, Recall ≥ 0.70
 
-## 🔧 Configuration
+## Configuration
 
 ### Dataset (dataset.yaml)
 
 ```yaml
 path: /path/to/Fire_data_v2_yolo_with_blank_images_and_false_positives
-train: train/images  # 15,323 images (47.4% with objects, 52.6% negatives)
+train: train/images  # 15,323 images (7,269 positive, 8,054 negative samples)
 val: test/images     # 382 images
 
 names:
@@ -115,38 +121,44 @@ names:
   1: fire   # 6% of instances
 ```
 
-### Training Hyperparameters (train.py)
+### Training Hyperparameters
 
 Key settings optimized for AlertCalifornia dataset:
 
-- **Epochs**: 150 (with patience=50 early stopping)
-- **Optimizer**: AdamW (lr0=0.001)
-- **Loss weights**: cls=0.3, box=7.5, dfl=1.5 (recall-focused)
-- **Augmentation**: Conservative (degrees=0, flipud=0, hsv_h=0.01)
+- **Epochs**: 150 with early stopping (patience=50)
+- **Optimizer**: AdamW (learning rate=0.001)
+- **Loss weights**: Classification=0.3, Box=7.5, DFL=1.5
+- **Augmentation**: Conservative settings for smoke/fire detection
 - **Batch size**: Model-dependent (see table above)
 
-## 📈 Training Analysis
+## Analysis and Visualization
 
-The `analyze.py` script generates a comprehensive 6-panel visualization:
+## Analysis and Visualization
+
+The analysis script generates a comprehensive 6-panel visualization:
 
 1. **mAP@0.5 Progress** - Training curve with baseline comparison
-2. **Precision & Recall** - Both metrics with smoothing
-3. **Training Loss Curves** - Box, Classification, DFL losses
-4. **Model Comparison Bar Chart** - Side-by-side performance
-5. **Metrics Comparison Table** - Detailed numbers
-6. **Training Status Summary** - Progress and ETA
+2. **Precision & Recall** - Metrics with temporal smoothing
+3. **Loss Curves** - Box, classification, and DFL losses
+4. **Model Comparison** - Performance bar chart
+5. **Metrics Table** - Detailed numerical comparison
+6. **Training Summary** - Progress statistics and ETA
 
-## 🧪 Testing
+## Model Evaluation
 
-The `test.py` script provides:
+The testing script provides:
+
+## Model Evaluation
+
+The testing script provides:
 
 - Single model evaluation on test set
-- Multi-model comparison (your model vs baselines)
+- Multi-model comparison with baselines
 - Detailed per-class metrics
-- JSON output for further analysis
-- COCO format results (optional)
+- JSON output for analysis
+- Optional COCO format results
 
-**Example Output:**
+Example output:
 
 ```
 Model                      Size   Params  mAP@0.5  Prec    Recall
@@ -156,7 +168,9 @@ Your Model (Best)           6.2M    3.2M   0.2958  0.4534  0.3150
 Pretrain YOLOv8            83.6M   43.6M   0.1944  0.3575  0.1650
 ```
 
-## 💾 Output Files
+## Output Structure
+
+## Output Structure
 
 ### Training Outputs
 
@@ -164,153 +178,145 @@ Pretrain YOLOv8            83.6M   43.6M   0.1944  0.3575  0.1650
   - `weights/best.pt` - Best model checkpoint
   - `weights/last.pt` - Latest checkpoint
   - `results.csv` - Training metrics per epoch
-  - `results.png` - Ultralytics default plots
+  - `results.png` - Training visualization
 
 ### Analysis Outputs
 
 - `training_analysis.png` - Comprehensive 6-panel visualization
-- `test_results_*.json` - Detailed test metrics
+- `test_results_*.json` - Detailed evaluation metrics
 
-## 🎯 Strategy Recommendations
+## Training Strategy
 
-### Current Training (YOLOv8n)
+## Training Strategy
 
-**Status:** Epoch 51/150 (34%), Best mAP = 0.2958
+### Current Approach
 
-**Pros:**
-- ✅ Fast training (~0.14h/epoch)
-- ✅ Already beating pretrain baseline (0.1944)
-- ✅ Low resource usage
+Training with YOLOv8n:
+- Fast iteration and prototyping
+- Low resource requirements
+- Baseline performance assessment
 
-**Next Steps:**
-1. Let it finish training (99 epochs remaining)
-2. If final mAP < 0.45 → Try YOLOv8s or YOLOv8l
-3. If final mAP ≥ 0.45 → Consider ensemble or post-processing
+### Model Selection Guidelines
 
-### Upgrade Path
-
-If YOLOv8n doesn't reach target (0.60 mAP):
+If YOLOv8n performance is insufficient:
 
 1. **YOLOv8s** (22MB, 11.2M params)
-   - +9% mAP over nano baseline
-   - Still relatively fast
-   - Good balance of speed/accuracy
+   - Moderate accuracy improvement
+   - Reasonable training time
+   - Good speed/accuracy balance
 
 2. **YOLOv8l** (87MB, 43.7M params)
-   - Same architecture as current_best
-   - Fair comparison with baseline
-   - Better chance to reach 0.60 target
+   - Matches baseline architecture
+   - Direct comparison capability
+   - Higher accuracy potential
 
-3. **pretrain_yolov8.pt** (Hackathon baseline)
-   - Start from 0.1944 → train to 0.4149+
-   - Proven architecture for this dataset
-   - Continue/improve hackathon training
+3. **pretrain_yolov8.pt**
+   - Leverages existing training
+   - Proven architecture for dataset
+   - Transfer learning benefits
 
-## 🔍 Key Insights
+## Dataset Information
 
-### Dataset Composition
+## Dataset Information
 
-- **Total train**: 15,323 images
-  - Positive samples: 7,269 (47.4%) with bounding boxes
-  - Negative samples: 8,054 (52.6%) empty labels (intentional!)
-- **Classes**: smoke (94%), fire (6%)
-- **Purpose of negatives**: Reduce false positives at zoom 1.0
+### Composition
 
-### Current Challenge
+- **Training**: 15,323 images
+  - Positive samples: 7,269 (47.4%) with annotations
+  - Negative samples: 8,054 (52.6%) without annotations
+- **Validation**: 382 images
+- **Classes**: Smoke (94%), Fire (6%)
 
-- YOLOv8n (3.2M params) vs Current Best (43.6M params)
-- **13x parameter disadvantage!**
-- Current performance: 0.2958 vs 0.4149 target (28.7% gap)
-- This gap is partly due to model capacity
+### Design Rationale
 
-### Performance Trends
+The dataset includes negative samples (empty annotations) intentionally to:
+- Reduce false positive detections
+- Improve model generalization
+- Enhance performance at lower zoom levels
 
-- Epoch 1 → 51: mAP improved +995% (0.027 → 0.2958)
-- Best epoch: 43 (may need more training or different model)
-- Loss curves decreasing steadily (no overfitting)
-- Validation metrics show learning progress
+### Performance Context
 
-## 🐛 Troubleshooting
+- YOLOv8n (3.2M parameters) vs Baseline (43.6M parameters)
+- 13x parameter difference affects capacity
+- Current gap: 0.2958 vs 0.4149 mAP@0.5
+
+## Troubleshooting
+
+## Troubleshooting
 
 ### Common Issues
 
-**"Results file not found"**
+**Results file not found**
 ```bash
-# Specify explicit path
 python analyze.py --results path/to/results.csv
 ```
 
-**"Out of memory"**
+**Out of memory**
 ```bash
-# Reduce batch size in train.py
-BATCH_SIZE = 64  # or lower
+# Reduce batch size in train.py or use --batch argument
+python train.py --model n --batch 64
 ```
 
-**"Baseline evaluation slow"**
+**Baseline evaluation slow**
 ```bash
-# Skip baseline comparison
 python analyze.py --no-baselines
 ```
 
-**"NumPy compatibility error"**
+**NumPy compatibility error**
 ```bash
 # Use the correct conda environment
 /home/whamidouche/ssdprivate/conda-env/cevg-rtnet/bin/python train.py
 ```
 
-## 📝 Notes
+## Technical Notes
 
-### Why 52.6% Empty Labels?
-
-The dataset intentionally includes 8,054 negative samples (images with no fire/smoke). This is NOT an error - it's designed to:
-
-1. Reduce false positives
-2. Teach the model what "normal" scenes look like
-3. Specifically improve performance at zoom level 1.0 (main bottleneck)
+## Technical Notes
 
 ### Training Time Estimates
 
-On NVIDIA A100 80GB:
+On NVIDIA A100 80GB GPU:
 
-- YOLOv8n: ~12-15 hours (150 epochs)
-- YOLOv8s: ~18-24 hours (150 epochs)
-- YOLOv8l: ~30-40 hours (150 epochs)
+- YOLOv8n: 12-15 hours (150 epochs)
+- YOLOv8s: 18-24 hours (150 epochs)
+- YOLOv8l: 30-40 hours (150 epochs)
 
 ### Recommended Workflow
 
-1. Train YOLOv8n first (fast iteration, baseline)
-2. Analyze results and understand dataset
-3. If needed, train larger model (YOLOv8s or YOLOv8l)
-4. Use insights from nano training to optimize
-5. Compare with baselines using test.py
+1. Train YOLOv8n for baseline performance
+2. Analyze results and dataset characteristics
+3. Select larger model if needed
+4. Apply insights from initial training
+5. Compare final results with baselines
 
-## 🚀 Advanced Usage
+## Advanced Usage
 
-### Custom Training
+## Advanced Usage
 
-Edit `train.py` to customize:
+### Custom Configuration
 
-- Model selection (lines 20-37)
-- Batch size (line 56)
-- Hyperparameters (lines 66-115)
-- Data augmentation (lines 88-101)
+Edit training parameters in `train.py`:
+
+- Model selection and batch size
+- Training hyperparameters
+- Data augmentation settings
+- Loss weights
 
 ### Monitoring Training
 
 ```bash
-# Watch training in real-time
+# View training in real-time
 screen -r train
 
 # Update visualization periodically
 watch -n 300 python analyze.py
 
-# Check GPU usage
+# Monitor GPU usage
 nvtop
 ```
 
-### Export to ONNX
+### Model Export
 
-After training, export for deployment:
+Export trained model to ONNX format:
 
 ```python
 from ultralytics import YOLO
@@ -318,22 +324,22 @@ model = YOLO('runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt')
 model.export(format='onnx', dynamic=False, simplify=True)
 ```
 
-## 📚 References
+## References
 
-- YOLOv8 Docs: https://docs.ultralytics.com/
-- AlertCalifornia: https://www.alertcalifornia.org/
+## References
+
+- [YOLOv8 Documentation](https://docs.ultralytics.com/)
+- [AlertCalifornia Project](https://www.alertcalifornia.org/)
 - Dataset: Fire_data_v2_yolo_with_blank_images_and_false_positives
 
-## 📧 Support
+## Support
 
-For questions or issues:
-1. Check this README
-2. Review training logs
-3. Run `python analyze.py --help`
-4. Run `python test.py --help`
+For assistance:
+1. Review this documentation
+2. Check training logs and outputs
+3. Use `--help` flag with scripts
 
 ---
 
+**Version:** 1.0  
 **Last Updated:** December 15, 2025
-**Framework Version:** 1.0
-**Author:** Optimized YOLOv8 Training for AlertCalifornia Hackathon
