@@ -2,6 +2,17 @@
 
 Production-ready training framework for AlertCalifornia fire/smoke detection using YOLOv8.
 
+## Installation
+
+```bash
+# Create conda environment
+conda create -p /path/to/env/firesmoke python=3.11 -y
+conda activate /path/to/env/firesmoke
+
+# Install dependencies
+pip install ultralytics
+```
+
 ## Project Structure
 
 ```
