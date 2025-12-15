@@ -197,6 +197,9 @@ Available models:
         'device': 0,
         'workers': 0,  # Avoid shared memory issues
         
+        # Multi-scale training (improves robustness across scales)
+        'rect': False,   # Disable rectangular training for multi-scale
+        
         # Project settings
         'project': 'runs',
         'name': f'{MODEL_NAME}_fire_smoke',
@@ -222,12 +225,12 @@ Available models:
         'hsv_v': 0.5,        # Value/brightness (day/night, shadows)
         'degrees': 5.0,      # Small rotation (smoke can tilt slightly)
         'translate': 0.1,    # Translation (more position variation)
-        'scale': 0.5,        # Scaling (fire appears at various scales)
+        'scale': 0.5,        # Multi-scale: ±50% scale jitter (0.5x-1.5x) for scale robustness
         'shear': 0.0,        # Shear (disabled - shape matters)
         'perspective': 0.001,# Perspective (camera angles)
         'flipud': 0.0,       # Vertical flip (disabled - smoke rises)
         'fliplr': 0.5,       # Horizontal flip (enabled)
-        'mosaic': 1.0,       # Mosaic augmentation
+        'mosaic': 1.0,       # Mosaic augmentation (multi-scale composition)
         'mixup': 0.2,        # Mixup (↑ helps with hard negatives and false positives)
         'copy_paste': 0.2,   # Copy-paste (↑ paste fire into empty regions)
         'erasing': 0.4,      # Random erasing (occlusion robustness)

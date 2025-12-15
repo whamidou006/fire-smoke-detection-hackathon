@@ -16,3 +16,8 @@ nc: 2  # number of classes
 names:
   0: smoke
   1: fire
+
+# Class balancing (inverse frequency weights for imbalanced dataset)
+# smoke: 94% of instances -> weight = 1.0 (baseline)
+# fire: 6% of instances -> weight = 15.67 (94/6 ratio)
+class_weights: [1.0, 15.67]  # [smoke, fire]
