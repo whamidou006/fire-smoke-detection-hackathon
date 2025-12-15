@@ -74,15 +74,28 @@ python train.py --model /path/to/custom.pt --batch 64
 ### Analyzing Training Progress
 
 ```bash
-# Generate visualization with baseline comparison
-python analyze.py --results ../runs/train_alertcal/yolov8n_optimized_v1/results.csv
+# Specify results.csv file explicitly (recommended)
+python analyze.py --results runs/yolov8n_fire_smoke/results.csv
 
-# Analysis without baselines
-python analyze.py --results ../runs/train_alertcal/yolov8n_optimized_v1/results.csv --no-baselines
+# Exclude baseline comparison for faster analysis
+python analyze.py --results runs/yolov8n_fire_smoke/results.csv --no-baselines
 
-# Auto-detect results file
+# Auto-detect results.csv file (searches common locations)
 python analyze.py
+
+# Available arguments:
+#   --results PATH       Path to results.csv file from training
+#   --output PATH        Output path for visualization (default: training_analysis.png)
+#   --no-baselines       Skip baseline model evaluation
+#   --dataset PATH       Dataset YAML file (default: dataset.yaml)
+#   --test PATH          Test a model instead of analyzing training
+#   --compare            Compare model with baselines when testing
 ```
+
+**Input File:** The `results.csv` file is automatically created by `train.py` in the training output directory:
+- **Location:** `runs/{model_name}_fire_smoke/results.csv`
+- **Format:** CSV with epoch-by-epoch metrics (mAP, precision, recall, losses)
+- **Created by:** YOLO during training
 
 ### Evaluating Models
 
