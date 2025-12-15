@@ -2,7 +2,51 @@
 
 Production-ready training framework for AlertCalifornia fire/smoke detection using YOLOv8.
 
+## Setup on New Machine
+
+### 1. Clone Repository
+
+```bash
+# Clone from GitHub
+git clone https://github.com/whamidou006/fire-smoke-detection-hackathon.git
+cd fire-smoke-detection-hackathon
+```
+
+### 2. Create Environment
+
+```bash
+# Create conda environment
+conda create -p /path/to/env/firesmoke python=3.11 -y
+conda activate /path/to/env/firesmoke
+
+# Install dependencies
+pip install ultralytics
+```
+
+### 3. Configure Dataset
+
+Edit `dataset.yaml` to point to your dataset location:
+```yaml
+path: /path/to/your/Fire_data_v2_yolo_with_blank_images_and_false_positives
+train: train/images
+val: test/images
+```
+
+### 4. Start Training
+
+```bash
+# Train with default model (YOLOv8n)
+python train.py
+
+# Or specify a different model
+python train.py --model s
+```
+
+YOLO pretrained models will be downloaded automatically on first use.
+
 ## Installation
+
+*Note: For complete setup from scratch, see "Setup on New Machine" section above.*
 
 ```bash
 # Create conda environment
