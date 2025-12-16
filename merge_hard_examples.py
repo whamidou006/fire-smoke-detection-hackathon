@@ -189,7 +189,10 @@ def merge_datasets(dry_run=True):
     
     # Step 2: Add False Negatives with annotations
     print(f"\n🔥 Step 2: Adding False Negatives (fires model missed)...")
+    
+    # Process FN TRAIN split
     fn_train_json = FN_DIR / "111225_export_train.json"
+    fn_train_count = 0
     
     if fn_train_json.exists():
         with open(fn_train_json, 'r') as f:
@@ -203,7 +206,6 @@ def merge_datasets(dry_run=True):
         for ann in fn_data['annotations']:
             annotations_by_image[ann['image_id']].append(ann)
         
-        fn_count = 0
         for img_id, annotations in annotations_by_image.items():
             img_info = image_map.get(img_id)
             if not img_info:
@@ -218,10 +220,10 @@ def merge_datasets(dry_run=True):
                 continue
             
             img_path = img_files[0]
-            fn_count += 1
+            fn_train_count += 1
             
             if not dry_run:
-                # Copy image
+                # Copy image to TRAIN
                 dest_img = output_train_images / f"fn_{img_path.name}"
                 shutil.copy2(img_path, dest_img)
                 
@@ -250,43 +252,164 @@ def merge_datasets(dry_run=True):
                 with open(label_path, 'w') as f:
                     f.writelines(yolo_lines)
         
-        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_count} FN images with annotations")
+        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_train_count} FN train images with annotations")
+    
+    # Process FN TEST split
+    fn_test_json = FN_DIR / "111225_export_test.json"
+    fn_test_count = 0
+    
+    if fn_test_json.exists():
+        with open(fn_test_json, 'r') as f:
+            fn_test_data = json.load(f)
+        
+        # Build image id to filename map
+        test_image_map = {img['id']: img for img in fn_test_data['images']}
+        
+        # Group annotations by image
+        test_annotations_by_image = defaultdict(list)
+        for ann in fn_test_data['annotations']:
+            test_annotations_by_image[ann['image_id']].append(ann)
+        
+        for img_id, annotations in test_annotations_by_image.items():
+            img_info = test_image_map.get(img_id)
+            if not img_info:
+                continue
+            
+            # Find actual image file
+            img_filename = os.path.basename(img_info['file_name'])
+            img_files = list(FN_DIR.glob(f"images/**/{img_filename}"))
+            
+            if not img_files:
+                continue
+            
+            img_path = img_files[0]
+            fn_test_count += 1
+            
+            if not dry_run:
+                # Copy image to TEST
+                dest_img = output_test_images / f"fn_{img_path.name}"
+                shutil.copy2(img_path, dest_img)
+                
+                # Convert annotations to YOLO format
+                yolo_lines = []
+                img_width = img_info['width']
+                img_height = img_info['height']
+                
+                if img_width <= 0 or img_height <= 0:
+                    try:
+                        with Image.open(img_path) as img:
+                            img_width, img_height = img.size
+                    except:
+                        continue
+                
+                for ann in annotations:
+                    category_id = ann['category_id'] - 1
+                    bbox = ann['bbox']
+                    yolo_bbox = coco_to_yolo(bbox, img_width, img_height)
+                    yolo_lines.append(f"{category_id} {' '.join(map(str, yolo_bbox))}\n")
+                
+                # Write YOLO label file
+                label_path = output_test_labels / f"fn_{img_path.stem}.txt"
+                with open(label_path, 'w') as f:
+                    f.writelines(yolo_lines)
+        
+        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_test_count} FN test images with annotations")
     
     # Step 3: Add False Positives (hard negatives)
     print(f"\n📭 Step 3: Adding False Positives (hard negatives)...")
+    
+    # Read FP train split CSV
+    fp_train_csv = FP_DIR / "train.csv"
+    fp_train_count = 0
+    fp_train_files = set()
+    
+    if fp_train_csv.exists():
+        import csv
+        with open(fp_train_csv, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # CSV has 'original_path' column with relative path like "images/225155048/..."
+                img_path = row.get('original_path', '')
+                if img_path:
+                    img_filename = os.path.basename(img_path)
+                    fp_train_files.add(img_filename)
+    
+    # Read FP test split CSV
+    fp_test_csv = FP_DIR / "test.csv"
+    fp_test_count = 0
+    fp_test_files = set()
+    
+    if fp_test_csv.exists():
+        import csv
+        with open(fp_test_csv, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                img_path = row.get('original_path', '')
+                if img_path:
+                    img_filename = os.path.basename(img_path)
+                    fp_test_files.add(img_filename)
+    
+    # Process all FP images
     fp_images = list(FP_DIR.glob("images/**/*.jpg")) + list(FP_DIR.glob("images/**/*.png"))
     
-    fp_count = 0
     for img_path in fp_images:
-        fp_count += 1
+        img_filename = img_path.name
         
         if not dry_run:
-            # Copy image
-            dest_img = output_train_images / f"fp_{img_path.name}"
-            shutil.copy2(img_path, dest_img)
-            
-            # Create empty label file (blank/negative sample)
-            label_path = output_train_labels / f"fp_{img_path.stem}.txt"
-            label_path.touch()  # Empty file = no annotations
+            # Check if it's in train or test split
+            if img_filename in fp_train_files:
+                # Add to TRAIN
+                dest_img = output_train_images / f"fp_{img_filename}"
+                shutil.copy2(img_path, dest_img)
+                
+                # Create empty label file (blank/negative sample)
+                label_path = output_train_labels / f"fp_{img_path.stem}.txt"
+                label_path.touch()
+                fp_train_count += 1
+                
+            elif img_filename in fp_test_files:
+                # Add to TEST
+                dest_img = output_test_images / f"fp_{img_filename}"
+                shutil.copy2(img_path, dest_img)
+                
+                # Create empty label file
+                label_path = output_test_labels / f"fp_{img_path.stem}.txt"
+                label_path.touch()
+                fp_test_count += 1
+        else:
+            # Dry run - just count
+            if img_filename in fp_train_files:
+                fp_train_count += 1
+            elif img_filename in fp_test_files:
+                fp_test_count += 1
     
-    print(f"   {'Would add' if dry_run else '✓ Added'} {fp_count} FP images as hard negatives")
+    print(f"   {'Would add' if dry_run else '✓ Added'} {fp_train_count} FP train images as hard negatives")
+    print(f"   {'Would add' if dry_run else '✓ Added'} {fp_test_count} FP test images as hard negatives")
     
     # Summary
     print("\n" + "="*80)
     print("📊 SUMMARY")
     print("="*80)
     
-    total_new = fn_count + fp_count
-    total_train = len(train_files) + total_new if current_train_images.exists() else total_new
+    total_new_train = fn_train_count + fp_train_count
+    total_new_test = fn_test_count + fp_test_count
+    total_train = len(train_files) + total_new_train if current_train_images.exists() else total_new_train
+    total_test = len(test_files) + total_new_test if current_test_images.exists() else total_new_test
     
     print(f"""
-Original training set:  {len(train_files) if current_train_images.exists() else 0:,} images
-+ False Negatives:      {fn_count:,} images (with fire/smoke labels)
-+ False Positives:      {fp_count:,} images (as blanks)
-----------------------------------------
-New training set:       {total_train:,} images (+{(total_new/len(train_files)*100) if current_train_images.exists() and len(train_files) > 0 else 0:.1f}%)
+TRAINING SET:
+  Original:             {len(train_files) if current_train_images.exists() else 0:,} images
+  + FN train:           {fn_train_count:,} images (fires model missed)
+  + FP train:           {fp_train_count:,} images (false alarms)
+  ----------------------------------------
+  New training set:     {total_train:,} images (+{(total_new_train/len(train_files)*100) if current_train_images.exists() and len(train_files) > 0 else 0:.1f}%)
 
-Test set remains:       {len(test_files) if current_test_images.exists() else 0:,} images (unchanged)
+TEST SET:
+  Original:             {len(test_files) if current_test_images.exists() else 0:,} images
+  + FN test:            {fn_test_count:,} images (fires model missed)
+  + FP test:            {fp_test_count:,} images (false alarms)
+  ----------------------------------------
+  New test set:         {total_test:,} images (+{(total_new_test/len(test_files)*100) if current_test_images.exists() and len(test_files) > 0 else 0:.1f}%)
 """)
     
     if not dry_run:
