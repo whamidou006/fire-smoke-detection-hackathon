@@ -83,14 +83,30 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     df = pd.read_csv(results_csv)
     df.columns = df.columns.str.strip()
     
+    # Calculate F1 score for each epoch
+    precision = df['metrics/precision(B)']
+    recall = df['metrics/recall(B)']
+    df['f1_score'] = 2 * (precision * recall) / (precision + recall)
+    df['f1_score'] = df['f1_score'].fillna(0)  # Handle division by zero
+    
     current_epoch = int(df['epoch'].iloc[-1])
     current_map = df['metrics/mAP50(B)'].iloc[-1]
+    current_f1 = df['f1_score'].iloc[-1]
+    
+    # Find best based on F1 score (primary) and mAP (secondary)
+    best_f1 = df['f1_score'].max()
+    best_f1_epoch = int(df[df['f1_score'] == best_f1]['epoch'].values[0])
+    best_f1_map = df[df['f1_score'] == best_f1]['metrics/mAP50(B)'].values[0]
+    
+    # Also track best mAP for comparison
     best_map = df['metrics/mAP50(B)'].max()
-    best_epoch = int(df[df['metrics/mAP50(B)'] == best_map]['epoch'].values[0])
+    best_map_epoch = int(df[df['metrics/mAP50(B)'] == best_map]['epoch'].values[0])
     
     print(f"\n📈 Training Progress:")
-    print(f"  • Current: Epoch {current_epoch}, mAP@0.5={current_map:.4f}")
-    print(f"  • Best:    Epoch {best_epoch}, mAP@0.5={best_map:.4f}")
+    print(f"  • Current: Epoch {current_epoch}, F1={current_f1:.4f}, mAP@0.5={current_map:.4f}")
+    print(f"  • Best F1: Epoch {best_f1_epoch}, F1={best_f1:.4f}, mAP@0.5={best_f1_map:.4f}")
+    if best_map_epoch != best_f1_epoch:
+        print(f"  • Best mAP: Epoch {best_map_epoch}, mAP@0.5={best_map:.4f} (different from best F1)")
     
     # Create figure
     fig = plt.figure(figsize=(18, 12))
@@ -221,23 +237,31 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     ax5 = fig.add_subplot(gs[2, 1])
     ax5.axis('off')
     
-    text = "METRICS COMPARISON\n" + "="*40 + "\n\n"
-    text += f"{'Model':<18} {'mAP':<8} {'Prec':<8} {'Recall':<8}\n"
-    text += "-"*45 + "\n"
+    text = "METRICS COMPARISON\n" + "="*50 + "\n\n"
+    text += f"{'Model':<18} {'F1':<8} {'mAP':<8} {'Prec':<8} {'Recall':<8}\n"
+    text += "-"*55 + "\n"
     
-    # Your model
-    best_idx = df['metrics/mAP50(B)'].idxmax()
-    text += f"{'Your (Now)':<18} {current_map:<8.4f} {df['metrics/precision(B)'].iloc[-1]:<8.4f} {df['metrics/recall(B)'].iloc[-1]:<8.4f}\n"
-    text += f"{'Your (Best)':<18} {best_map:<8.4f} {df['metrics/precision(B)'].iloc[best_idx]:<8.4f} {df['metrics/recall(B)'].iloc[best_idx]:<8.4f}\n"
+    # Your model - use F1-based best
+    best_f1_idx = df['f1_score'].idxmax()
+    current_prec = df['metrics/precision(B)'].iloc[-1]
+    current_rec = df['metrics/recall(B)'].iloc[-1]
+    best_prec = df['metrics/precision(B)'].iloc[best_f1_idx]
+    best_rec = df['metrics/recall(B)'].iloc[best_f1_idx]
+    
+    text += f"{'Your (Now)':<18} {current_f1:<8.4f} {current_map:<8.4f} {current_prec:<8.4f} {current_rec:<8.4f}\n"
+    text += f"{'Your (Best F1)':<18} {best_f1:<8.4f} {best_f1_map:<8.4f} {best_prec:<8.4f} {best_rec:<8.4f}\n"
     
     # Baselines
     if baselines:
         for name, metrics in baselines.items():
             short_name = name.split()[0]
-            text += f"{short_name:<18} {metrics['map50']:<8.4f} {metrics['precision']:<8.4f} {metrics['recall']:<8.4f}\n"
+            # Calculate F1 for baselines
+            baseline_f1 = 2 * (metrics['precision'] * metrics['recall']) / (metrics['precision'] + metrics['recall']) if (metrics['precision'] + metrics['recall']) > 0 else 0
+            text += f"{short_name:<18} {baseline_f1:<8.4f} {metrics['map50']:<8.4f} {metrics['precision']:<8.4f} {metrics['recall']:<8.4f}\n"
     
-    text += "\n" + "-"*45 + "\n"
-    text += "TARGET           0.6000   0.6000   0.7000\n"
+    text += "\n" + "-"*55 + "\n"
+    text += "TARGET             0.6600   0.6000   0.6000   0.7000\n"
+    text += "(Balanced performance across all metrics)\n"
     
     ax5.text(0.05, 0.95, text, transform=ax5.transAxes, fontsize=9,
             verticalalignment='top', fontfamily='monospace',
@@ -249,27 +273,39 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     ax6 = fig.add_subplot(gs[2, 2])
     ax6.axis('off')
     
-    improvement = (best_map - df['metrics/mAP50(B)'].iloc[0]) / df['metrics/mAP50(B)'].iloc[0] * 100
+    # Calculate improvements based on F1 score
+    first_epoch_prec = df['metrics/precision(B)'].iloc[0]
+    first_epoch_rec = df['metrics/recall(B)'].iloc[0]
+    first_f1 = 2 * (first_epoch_prec * first_epoch_rec) / (first_epoch_prec + first_epoch_rec) if (first_epoch_prec + first_epoch_rec) > 0 else 0
+    f1_improvement = (best_f1 - first_f1) / first_f1 * 100 if first_f1 > 0 else 0
+    map_improvement = (best_f1_map - df['metrics/mAP50(B)'].iloc[0]) / df['metrics/mAP50(B)'].iloc[0] * 100
     
-    # Baseline comparison
+    # Baseline comparison (use F1 score)
     comparison_lines = []
     if baselines:
         for name, metrics in baselines.items():
-            if best_map > metrics['map50']:
-                diff = (best_map - metrics['map50']) / metrics['map50'] * 100
-                comparison_lines.append(f"✓ Beating {name.split()[0]} by {diff:.1f}%")
+            baseline_f1 = 2 * (metrics['precision'] * metrics['recall']) / (metrics['precision'] + metrics['recall']) if (metrics['precision'] + metrics['recall']) > 0 else 0
+            if best_f1 > baseline_f1:
+                diff = (best_f1 - baseline_f1) / baseline_f1 * 100 if baseline_f1 > 0 else 0
+                comparison_lines.append(f"✓ Beating {name.split()[0]} by {diff:.1f}% (F1)")
             else:
-                diff = (metrics['map50'] - best_map) / metrics['map50'] * 100
-                comparison_lines.append(f"✗ {name.split()[0]} ahead by {diff:.1f}%")
+                diff = (baseline_f1 - best_f1) / baseline_f1 * 100 if baseline_f1 > 0 else 0
+                comparison_lines.append(f"✗ {name.split()[0]} ahead by {diff:.1f}% (F1)")
     
     stats = f"""
 TRAINING STATUS
 
 Epoch: {current_epoch}/150 ({current_epoch/150*100:.1f}%)
-Best:  ep {best_epoch} ({best_map:.4f})
+Best:  ep {best_f1_epoch}
+  F1:   {best_f1:.4f}
+  mAP:  {best_f1_map:.4f}
 
-Gap to Target (0.60):
-  {(0.60-best_map)/0.60*100:.1f}% remaining
+Improvement from start:
+  F1:   +{f1_improvement:.1f}%
+  mAP:  +{map_improvement:.1f}%
+
+Gap to Target (F1=0.66):
+  {(0.66-best_f1)/0.66*100:.1f}% remaining
 
 BASELINE COMPARISON
 """
@@ -295,8 +331,12 @@ Cls: {df['train/cls_loss'].iloc[0]:.3f}→{df['train/cls_loss'].iloc[-1]:.3f}
     return {
         'current_epoch': current_epoch,
         'current_map': current_map,
-        'best_epoch': best_epoch,
-        'best_map': best_map,
+        'current_f1': current_f1,
+        'best_epoch': best_f1_epoch,  # Best based on F1 score
+        'best_map': best_f1_map,
+        'best_f1': best_f1,
+        'best_map_epoch': best_map_epoch,  # For reference
+        'best_map_overall': best_map,  # For reference
         'total_epochs': len(df)
     }
 
@@ -454,7 +494,8 @@ Examples:
                         )
                         
                         print(f"  ✓ Epoch {stats['current_epoch']}/{stats['total_epochs']}, "
-                              f"mAP={stats['current_map']:.4f}, Best={stats['best_map']:.4f} @ Epoch {stats['best_epoch']}")
+                              f"F1={stats['current_f1']:.4f}, mAP={stats['current_map']:.4f}, "
+                              f"Best F1={stats['best_f1']:.4f} @ Epoch {stats['best_epoch']}")
                         
                     except Exception as e:
                         print(f"  ✗ Error: {e}")
@@ -496,15 +537,16 @@ Examples:
         print("🎉 ANALYSIS COMPLETE")
         print("="*80)
         print(f"\n📊 Summary:")
-        print(f"  • Current: Epoch {stats['current_epoch']}, mAP={stats['current_map']:.4f}")
-        print(f"  • Best:    Epoch {stats['best_epoch']}, mAP={stats['best_map']:.4f}")
+        print(f"  • Current: Epoch {stats['current_epoch']}, F1={stats['current_f1']:.4f}, mAP={stats['current_map']:.4f}")
+        print(f"  • Best F1: Epoch {stats['best_epoch']}, F1={stats['best_f1']:.4f}, mAP={stats['best_map']:.4f}")
         
         if baselines:
-            print(f"\n🎯 Baseline Comparison:")
+            print(f"\n🎯 Baseline Comparison (F1 Score):")
             for name, metrics in baselines.items():
-                status = "✅" if stats['best_map'] > metrics['map50'] else "⚠️"
-                diff = abs(stats['best_map'] - metrics['map50'])
-                print(f"  {status} {name}: {metrics['map50']:.4f} (Δ {diff:.4f})")
+                baseline_f1 = 2 * (metrics['precision'] * metrics['recall']) / (metrics['precision'] + metrics['recall']) if (metrics['precision'] + metrics['recall']) > 0 else 0
+                status = "✅" if stats['best_f1'] > baseline_f1 else "⚠️"
+                diff = abs(stats['best_f1'] - baseline_f1)
+                print(f"  {status} {name}: F1={baseline_f1:.4f} (Δ {diff:.4f})")
         
         print("\n" + "="*80)
         
