@@ -236,9 +236,9 @@ Available models:
         
         # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
-        'lr0': 0.001,        # Increased for faster convergence
-        'lrf': 0.001,        # Lower final LR for fine-tuning
-        'weight_decay': 0.0001,  # Stronger regularization
+        'lr0': 0.001,        # Initial learning rate
+        'lrf': 0.01,         # Final LR factor (more gradual decay for better convergence)
+        'weight_decay': 0.0005,  # Regularization (balanced)
         'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,
         
@@ -247,21 +247,25 @@ Available models:
         'box': 7.5,   # Box regression loss weight (↓ from 5.0 - less localization focus)
         'dfl': 1.5,   # Distribution focal loss weight
         
-        # Data augmentation (enhanced for fire/smoke robustness)
-        'hsv_h': 0.015,      # Hue variation (fire color variations)
-        'hsv_s': 0.6,        # Saturation variation (smoke density, lighting)
-        'hsv_v': 0.5,        # Value/brightness (day/night, shadows)
-        'degrees': 5.0,      # Small rotation (smoke can tilt slightly)
-        'translate': 0.1,    # Translation (more position variation)
-        'scale': 0.5,        # Multi-scale: ±50% scale jitter (0.5x-1.5x) for scale robustness
-        'shear': 0.0,        # Shear (disabled - shape matters)
-        'perspective': 0.001,# Perspective (camera angles)
-        'flipud': 0.0,       # Vertical flip (disabled - smoke rises)
-        'fliplr': 0.5,       # Horizontal flip (enabled)
-        'mosaic': 1.0,       # Mosaic augmentation (multi-scale composition)
-        'mixup': 0.2,        # Mixup (↑ helps with hard negatives and false positives)
-        'copy_paste': 0.4,   # Copy-paste (↑ paste fire into empty regions)
-        'erasing': 0.4,      # Random erasing (occlusion robustness)
+        # Data augmentation (CONSERVATIVE for fire/smoke - based on train_alertcal_optimized.py)
+        # Fire/smoke have distinctive characteristics that aggressive augmentation can distort:
+        # - Fire colors (orange/red) shouldn't shift much
+        # - Smoke rises upward (rotation breaks this pattern)
+        # - Smoke density depends on saturation/brightness
+        'hsv_h': 0.01,       # Minimal hue shift (preserve fire colors)
+        'hsv_s': 0.4,        # Moderate saturation (smoke density variations)
+        'hsv_v': 0.3,        # Moderate brightness (day/night)
+        'degrees': 0.0,      # NO rotation (smoke orientation matters!)
+        'translate': 0.05,   # Minimal translation
+        'scale': 0.2,        # Moderate scale variation
+        'shear': 0.0,        # No shear (shape matters)
+        'perspective': 0.0,  # No perspective (keep natural)
+        'flipud': 0.0,       # No vertical flip (smoke rises)
+        'fliplr': 0.5,       # Horizontal flip only
+        'mosaic': 1.0,       # Keep mosaic (helps with context)
+        'mixup': 0.0,        # Disable mixup (can create unrealistic fire/smoke)
+        'copy_paste': 0.0,   # Disable copy-paste (can look artificial)
+        'erasing': 0.0,      # No random erasing (fire/smoke shouldn't disappear)
         
         # Validation
         'val': True,
