@@ -1,9 +1,9 @@
 # AlertCalifornia Fire/Smoke Detection Dataset Configuration
 # Dataset: Fire_data_v3_with_hard_examples (includes hard negatives/positives from current_best)
-# Total: 19,352 train images (13,133 original + 1,963 FN + 4,256 FP)
-#        382 test images (unchanged)
-# Classes: smoke (94%), fire (6%)
-# Hard examples: 1,963 fires model missed + 4,256 false alarm images
+# Train: 18,885 images (7,038 with objects, 11,847 blanks) - 8,397 total objects
+# Test:  1,015 images (521 with objects, 494 blanks) - 590 total objects
+# Classes: smoke (94.1%), fire (5.9%)
+# Hard examples: 1,963 FN (missed fires) + 229 FN test, 3,850 FP (false alarms) + 406 FP test
 
 # Dataset path (absolute)
 # Original dataset (v2):
@@ -13,8 +13,8 @@
 path: /home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/data/Fire_data_v3_with_hard_examples
 
 # Splits
-train: train/images  # 19,352 images (13,133 + 1,963 FN + 4,256 FP)
-val: test/images     # 382 images (using test as validation)
+train: train/images  # 18,885 images (37.3% positive, 62.7% negative)
+val: test/images     # 1,015 images (51.3% positive, 48.7% negative)
 
 # Classes
 nc: 2  # number of classes
@@ -23,6 +23,7 @@ names:
   1: fire
 
 # Class balancing (inverse frequency weights for imbalanced dataset)
-# smoke: 94% of instances -> weight = 1.0 (baseline)
-# fire: 6% of instances -> weight = 15.67 (94/6 ratio)
-class_weights: [1.0, 15.67]  # [smoke, fire]
+# Based on v3 training set: 7,905 smoke (94.1%), 492 fire (5.9%)
+# smoke: 94.1% of instances -> weight = 1.0 (baseline)
+# fire: 5.9% of instances -> weight = 16.07 (7905/492 ratio, rounded to 16.0)
+class_weights: [1.0, 16.0]  # [smoke, fire] - updated for v3 dataset
