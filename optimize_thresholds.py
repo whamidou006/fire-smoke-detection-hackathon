@@ -18,7 +18,7 @@ from pathlib import Path
 import json
 
 
-def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='map50', iou=0.2):
+def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='map50', iou=0.2, device=0):
     """
     Find optimal confidence threshold by grid search
     
@@ -27,6 +27,7 @@ def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='
         data_yaml: Dataset configuration
         metric: Metric to optimize ('map50', 'map', 'f1', 'precision', 'recall')
         iou: IoU threshold for NMS (fixed)
+        device: GPU device (0, 1, 2, etc. or 'cpu')
     
     Returns:
         dict: Results with optimal threshold
@@ -56,6 +57,7 @@ def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='
             data=data_yaml,
             conf=conf,
             iou=iou,
+            device=device,
             verbose=False,
             plots=False
         )
@@ -109,7 +111,7 @@ def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='
     }
 
 
-def optimize_iou_threshold(model_path, data_yaml='dataset.yaml', conf=0.25):
+def optimize_iou_threshold(model_path, data_yaml='dataset.yaml', conf=0.25, device=0):
     """
     Find optimal IoU threshold for NMS
     
@@ -117,6 +119,7 @@ def optimize_iou_threshold(model_path, data_yaml='dataset.yaml', conf=0.25):
         model_path: Path to model weights
         data_yaml: Dataset configuration
         conf: Confidence threshold (fixed)
+        device: GPU device (0, 1, 2, etc. or 'cpu')
     
     Returns:
         dict: Results with optimal IoU threshold
@@ -144,6 +147,7 @@ def optimize_iou_threshold(model_path, data_yaml='dataset.yaml', conf=0.25):
             data=data_yaml,
             conf=conf,
             iou=iou,
+            device=device,
             verbose=False,
             plots=False
         )
@@ -207,6 +211,8 @@ Examples:
     parser.add_argument('--metric', type=str, default='map50',
                         choices=['map50', 'map', 'f1', 'precision', 'recall'],
                         help='Metric to optimize (default: map50)')
+    parser.add_argument('--device', type=str, default='0',
+                        help='GPU device to use (0, 1, 2, etc. or cpu) (default: 0)')
     parser.add_argument('--optimize-iou', action='store_true',
                         help='Also optimize IoU threshold (slower)')
     parser.add_argument('--output', type=str, default='threshold_optimization.json',
@@ -224,7 +230,8 @@ Examples:
         args.model,
         args.data,
         args.metric,
-        iou=0.2  # Default IoU for initial optimization
+        iou=0.2,  # Default IoU for initial optimization
+        device=args.device
     )
     
     # Optionally optimize IoU threshold
@@ -234,7 +241,8 @@ Examples:
         iou_results = optimize_iou_threshold(
             args.model,
             args.data,
-            conf=optimal_conf
+            conf=optimal_conf,
+            device=args.device
         )
     
     # Combine results
