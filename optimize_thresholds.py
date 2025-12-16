@@ -58,6 +58,7 @@ def optimize_confidence_threshold(model_path, data_yaml='dataset.yaml', metric='
             conf=conf,
             iou=iou,
             device=device,
+            workers=0,  # Disable multiprocessing to avoid shared memory issues
             verbose=False,
             plots=False
         )
@@ -148,6 +149,7 @@ def optimize_iou_threshold(model_path, data_yaml='dataset.yaml', conf=0.25, devi
             conf=conf,
             iou=iou,
             device=device,
+            workers=0,  # Disable multiprocessing to avoid shared memory issues
             verbose=False,
             plots=False
         )
