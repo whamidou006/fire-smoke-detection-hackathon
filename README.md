@@ -19,8 +19,11 @@ cd fire-smoke-detection-hackathon
 conda create -p /path/to/env/firesmoke python=3.11 -y
 conda activate /path/to/env/firesmoke
 
-# Install dependencies
-pip install ultralytics
+# Install dependencies from requirements.txt
+pip install -r requirements.txt
+
+# Or install minimal dependencies manually
+pip install ultralytics torch torchvision matplotlib pandas
 ```
 
 ### 3. Configure Dataset
@@ -53,8 +56,11 @@ YOLO pretrained models will be downloaded automatically on first use.
 conda create -p /path/to/env/firesmoke python=3.11 -y
 conda activate /path/to/env/firesmoke
 
-# Install dependencies
-pip install ultralytics
+# Install all dependencies from requirements.txt (recommended)
+pip install -r requirements.txt
+
+# Or install minimal dependencies manually
+pip install ultralytics torch torchvision matplotlib pandas
 ```
 
 ## Project Structure
