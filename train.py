@@ -12,13 +12,23 @@ import subprocess
 import os
 
 # Model configurations: name -> (path, batch_size)
+# Optimized batch sizes for A100 80GB: 128 for all models, 96 for yolov8x
 MODEL_CONFIGS = {
     'n': ('yolov8n.pt', 128),
-    's': ('yolov8s.pt', 96),
-    'm': ('yolov8m.pt', 56),
-    'l': ('yolov8l.pt', 40),
-    'x': ('yolov8x.pt', 24),
-    'pretrain': ('/home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/weights/pretrain_yolov8.pt', 40),
+    's': ('yolov8s.pt', 128),
+    'm': ('yolov8m.pt', 128),
+    'l': ('yolov8l.pt', 128),
+    'x': ('yolov8x.pt', 96),
+    
+    # YOLOv11 models (latest)
+    '11n': ('yolo11n.pt', 128),
+    '11s': ('yolo11s.pt', 128),
+    '11m': ('yolo11m.pt', 128),
+    '11l': ('yolo11l.pt', 128),
+    '11x': ('yolo11x.pt', 96),
+    
+    # Pretrained model
+    'pretrain': ('/home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/weights/pretrain_yolov8.pt', 128),
 }
 
 def download_model(model_name):
@@ -63,7 +73,14 @@ def download_model(model_name):
     
     # Download using Python urllib (more reliable with SSL)
     print(f"📥 Downloading {model_name}...")
-    url = f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{model_name}"
+    
+    # Determine version for download URL
+    if 'yolo11' in model_name or model_name.startswith('yolo11'):
+        version = 'v8.3.0'  # YOLOv11 uses same release
+    else:
+        version = 'v8.3.0'  # YOLOv8
+    
+    url = f"https://github.com/ultralytics/assets/releases/download/{version}/{model_name}"
     
     try:
         import ssl
@@ -118,31 +135,41 @@ def main():
     # ARGUMENT PARSING
     # ============================================================================
     parser = argparse.ArgumentParser(
-        description='Train YOLOv8 on Fire/Smoke Detection Dataset',
+        description='Train YOLOv8/v11 on Fire/Smoke Detection Dataset',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python train.py                    # Train with YOLOv8n (default)
   python train.py --model s          # Train with YOLOv8s
   python train.py --model l          # Train with YOLOv8l
+  python train.py --model 11s        # Train with YOLOv11s
   python train.py --model pretrain   # Continue from pretrain_yolov8.pt
   python train.py --model n --batch 64  # Custom batch size
   python train.py --model /path/to/custom.pt --batch 32  # Custom model
 
-Available models:
+Available YOLOv8 models:
   n        YOLOv8n (6MB, 3.2M params, batch=128)
-  s        YOLOv8s (22MB, 11.2M params, batch=96)
-  m        YOLOv8m (52MB, 25.9M params, batch=56)
-  l        YOLOv8l (87MB, 43.7M params, batch=40)
-  x        YOLOv8x (136MB, 68.2M params, batch=24)
-  pretrain Hackathon pretrained YOLOv8l (batch=40)
+  s        YOLOv8s (22MB, 11.2M params, batch=128)
+  m        YOLOv8m (52MB, 25.9M params, batch=128)
+  l        YOLOv8l (87MB, 43.7M params, batch=128)
+  x        YOLOv8x (136MB, 68.2M params, batch=96)
+
+Available YOLOv11 models (latest):
+  11n      YOLOv11n (5MB, 2.6M params, batch=128)
+  11s      YOLOv11s (20MB, 9.4M params, batch=128)
+  11m      YOLOv11m (48MB, 20.1M params, batch=128)
+  11l      YOLOv11l (83MB, 25.3M params, batch=128)
+  11x      YOLOv11x (131MB, 56.9M params, batch=96)
+
+Other:
+  pretrain Hackathon pretrained YOLOv8l (batch=128)
         """
     )
     parser.add_argument(
         '--model', '-m',
         type=str,
         default='n',
-        help='Model to train: n/s/m/l/x/pretrain or path to .pt file (default: n)'
+        help='Model to train: n/s/m/l/x/11n/11s/11m/11l/11x/pretrain or path to .pt file (default: n)'
     )
     parser.add_argument(
         '--batch', '-b',
@@ -174,11 +201,18 @@ Available models:
     if args.model in MODEL_CONFIGS:
         MODEL_PATH, default_batch = MODEL_CONFIGS[args.model]
         BATCH_SIZE = args.batch if args.batch is not None else default_batch
-        MODEL_NAME = f'yolov8{args.model}' if args.model != 'pretrain' else 'yolov8l_pretrain'
+        
+        # Handle model naming
+        if args.model == 'pretrain':
+            MODEL_NAME = 'yolov8l_pretrain'
+        elif args.model.startswith('11'):
+            MODEL_NAME = f'yolo{args.model}'  # e.g., '11s' -> 'yolo11s'
+        else:
+            MODEL_NAME = f'yolov8{args.model}'  # e.g., 'n' -> 'yolov8n'
     else:
         # Custom model path
         MODEL_PATH = args.model
-        BATCH_SIZE = args.batch if args.batch is not None else 64  # Default for custom
+        BATCH_SIZE = args.batch if args.batch is not None else 128  # Default batch size
         MODEL_NAME = Path(MODEL_PATH).stem
     
     print(f"\n📦 Model: {MODEL_NAME}")
@@ -191,7 +225,9 @@ Available models:
     downloaded_path = download_model(MODEL_PATH)
     if downloaded_path is None:
         print(f"\n❌ Failed to download/locate model: {MODEL_PATH}")
-        print(f"\nAvailable models: n, s, m, l, x, pretrain")
+        print(f"\nAvailable YOLOv8 models: n, s, m, l, x")
+        print(f"Available YOLOv11 models: 11n, 11s, 11m, 11l, 11x")
+        print(f"Other: pretrain")
         print(f"Or provide a custom path to an existing .pt file")
         sys.exit(1)
     
