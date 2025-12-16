@@ -23,7 +23,7 @@ MODEL_CONFIGS = {
 
 def download_model(model_name):
     """
-    Download YOLOv8 model using curl if not already present.
+    Download YOLOv8 model using Python urllib if not already present.
     This handles SSL issues that occur with the default Ultralytics downloader.
     
     Args:
@@ -39,47 +39,75 @@ def download_model(model_name):
             return None
         return model_name
     
-    # Check if model already exists locally
+    # Check if model already exists locally (and not empty)
     script_dir = Path(__file__).parent
     local_path = script_dir / model_name
     
-    if local_path.exists():
-        print(f"✓ Model found locally: {local_path}")
+    if local_path.exists() and local_path.stat().st_size > 1024:  # At least 1KB
+        file_size_mb = local_path.stat().st_size / (1024 * 1024)
+        print(f"✓ Model found locally: {local_path} ({file_size_mb:.1f}MB)")
         return str(local_path)
     
     # Check Ultralytics cache
     cache_dir = Path.home() / '.config' / 'Ultralytics'
     cached_path = cache_dir / model_name
-    if cached_path.exists():
-        print(f"✓ Model found in cache: {cached_path}")
+    if cached_path.exists() and cached_path.stat().st_size > 1024:
+        file_size_mb = cached_path.stat().st_size / (1024 * 1024)
+        print(f"✓ Model found in cache: {cached_path} ({file_size_mb:.1f}MB)")
         return str(cached_path)
     
-    # Download using curl (more reliable than urllib with SSL issues)
-    print(f"📥 Downloading {model_name} (21.5MB)...")
+    # Remove empty/corrupted file if exists
+    if local_path.exists():
+        print(f"⚠️  Removing corrupted file: {local_path}")
+        local_path.unlink()
+    
+    # Download using Python urllib (more reliable with SSL)
+    print(f"📥 Downloading {model_name}...")
     url = f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{model_name}"
     
     try:
-        # Use curl with redirect following
-        result = subprocess.run(
-            ['curl', '-L', '-o', str(local_path), url],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minute timeout
-        )
+        import ssl
+        import urllib.request
         
-        if result.returncode == 0 and local_path.exists():
+        # Create SSL context that doesn't verify certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Download with progress
+        print(f"Downloading from: {url}")
+        with urllib.request.urlopen(url, context=ssl_context, timeout=300) as response:
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 8192
+            downloaded = 0
+            
+            with open(local_path, 'wb') as f:
+                while True:
+                    chunk = response.read(block_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = (downloaded / total_size) * 100
+                        print(f"\rProgress: {progress:.1f}% ({downloaded/(1024*1024):.1f}/{total_size/(1024*1024):.1f} MB)", end='')
+        
+        print()  # New line after progress
+        
+        if local_path.exists() and local_path.stat().st_size > 1024:
             file_size_mb = local_path.stat().st_size / (1024 * 1024)
             print(f"✓ Successfully downloaded {model_name} ({file_size_mb:.1f}MB)")
             return str(local_path)
         else:
-            print(f"❌ Download failed: {result.stderr}")
+            print(f"❌ Downloaded file is invalid")
+            if local_path.exists():
+                local_path.unlink()
             return None
             
-    except subprocess.TimeoutExpired:
-        print(f"❌ Download timeout after 5 minutes")
-        return None
     except Exception as e:
         print(f"❌ Download error: {e}")
+        if local_path.exists():
+            local_path.unlink()
         return None
 
 
