@@ -19,8 +19,14 @@ from datetime import datetime
 from ultralytics import YOLO
 
 
-def load_baseline_metrics(dataset_yaml):
-    """Load and evaluate baseline models"""
+def load_baseline_metrics(dataset_yaml, conf_threshold=0.15, iou_threshold=0.4):
+    """Load and evaluate baseline models
+    
+    Args:
+        dataset_yaml: Path to dataset YAML file
+        conf_threshold: Confidence threshold (default: 0.15)
+        iou_threshold: IoU threshold (default: 0.4)
+    """
     baselines = {}
     
     baseline_models = {
@@ -29,6 +35,7 @@ def load_baseline_metrics(dataset_yaml):
     }
     
     print("📊 Evaluating baseline models...")
+    print(f"   Using conf={conf_threshold}, iou={iou_threshold}")
     
     for name, model_path in baseline_models.items():
         if not Path(model_path).exists():
@@ -43,8 +50,8 @@ def load_baseline_metrics(dataset_yaml):
                 batch=8,
                 imgsz=640,
                 verbose=False,
-                conf=0.15,  # Optimized threshold from threshold optimization
-                iou=0.4,    # Optimized threshold from threshold optimization
+                conf=conf_threshold,  # Use provided threshold
+                iou=iou_threshold,    # Use provided threshold
                 workers=0
             )
             
@@ -306,11 +313,14 @@ Examples:
   # Skip baseline comparison (faster)
   python analyze.py --results runs/train/results.csv --no-baselines
   
+  # Custom confidence and IoU thresholds
+  python analyze.py --results runs/train/results.csv --conf 0.25 --iou 0.5
+  
   # Watch mode - continuous updates during training
   python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch
   
-  # Watch mode with custom interval
-  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch --interval 60
+  # Watch mode with custom interval and thresholds
+  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch --interval 60 --conf 0.15 --iou 0.4
   
   # Run model testing
   python analyze.py --test runs/train/weights/best.pt
@@ -326,6 +336,8 @@ Examples:
     parser.add_argument('--output', type=str, default='training_analysis.png', help='Output plot filename')
     parser.add_argument('--dataset', type=str, default='dataset.yaml', help='Dataset YAML for baseline evaluation')
     parser.add_argument('--no-baselines', action='store_true', help='Skip baseline evaluation')
+    parser.add_argument('--conf', type=float, default=0.15, help='Confidence threshold for baseline evaluation (default: 0.15)')
+    parser.add_argument('--iou', type=float, default=0.4, help='IoU threshold for baseline evaluation (default: 0.4)')
     parser.add_argument('--test', type=str, metavar='MODEL', help='Run model testing (calls test.py)')
     parser.add_argument('--compare', action='store_true', help='Compare with baselines when testing')
     parser.add_argument('--multi-scale', action='store_true', help='Enable multi-scale validation when testing')
@@ -415,7 +427,7 @@ Examples:
         if not args.no_baselines:
             print("📊 Loading baseline models (one-time evaluation)...")
             try:
-                baselines = load_baseline_metrics(args.dataset)
+                baselines = load_baseline_metrics(args.dataset, args.conf, args.iou)
                 baselines_loaded = True
                 print("✓ Baselines loaded successfully\n")
             except Exception as e:
@@ -466,7 +478,7 @@ Examples:
     baselines = {}
     if not args.no_baselines:
         try:
-            baselines = load_baseline_metrics(args.dataset)
+            baselines = load_baseline_metrics(args.dataset, args.conf, args.iou)
         except Exception as e:
             print(f"⚠️  Baseline evaluation failed: {e}")
             print("   Continuing without baselines...")

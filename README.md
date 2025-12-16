@@ -398,12 +398,78 @@ On NVIDIA A100 80GB GPU:
 
 ### Tiling Inference for High-Resolution Images
 
-For high-resolution images (>1920x1080), use the dedicated `tiling_inference.py` script that processes images in overlapping tiles for better small object detection.
+For high-resolution images (>1920x1080), we provide two tiling options:
 
-**When to use tiling:**
+#### Option 1: SAHI (Optional - Advanced Users) ⭐
+
+[SAHI](https://github.com/obss/sahi) is a production-grade library with optimized merge strategies (NMS, WBF, NMW).
+
+**⚠️ Optional Installation (may cause dependency conflicts):**
+```bash
+# Install in a separate environment if needed
+pip install sahi
+```
+
+**When to use SAHI:**
+- ✅ 4K+ resolution images (3840×2160 and above)
+- ✅ Production deployments requiring advanced merge
+- ✅ Aerial/satellite imagery
+- ✅ When you need WBF/NMW postprocessing
+
+**Usage:**
+```bash
+# Process 4K image with optimal settings
+python sahi_inference.py \
+  --model runs/yolov8s_fire_smoke/weights/best.pt \
+  --image 4k_image.jpg \
+  --slice-size 1920 \
+  --overlap 0.3 \
+  --postprocess NMW \
+  --conf 0.15 \
+  --iou 0.4
+
+# Directory with ground truth evaluation
+python sahi_inference.py \
+  --model best.pt \
+  --image test/images/ \
+  --labels test/labels/ \
+  --output sahi_results/
+
+# Different postprocessing methods
+python sahi_inference.py --model best.pt --image image.jpg --postprocess NMS    # Standard
+python sahi_inference.py --model best.pt --image image.jpg --postprocess WBF    # Weighted fusion
+python sahi_inference.py --model best.pt --image image.jpg --postprocess NMW    # Weighted merge
+```
+
+**SAHI Parameters:**
+- `--slice-size`: Size of each slice (default: 640, recommend 1280-1920 for 4K)
+- `--overlap`: Overlap ratio 0.0-0.5 (default: 0.3)
+- `--postprocess`: Merge method - NMS/WBF/NMW (default: NMS)
+- `--conf`: Confidence threshold (default: 0.15)
+- `--iou`: IoU threshold (default: 0.4)
+- `--labels`: Ground truth directory for metrics
+
+**SAHI Advantages:**
+- ⭐ Multiple merge strategies (NMS, WBF, NMW)
+- ⭐ Better edge detection
+- ⭐ Production-tested and optimized
+- ⭐ Active maintenance and support
+
+---
+
+#### Option 2: Custom Tiling (Recommended - No Extra Dependencies)
+
+Use the built-in `tiling_inference.py` for sliding window inference without additional dependencies.
+
+**✅ Advantages:**
+- No additional package installation required
+- Works with your existing environment
+- Suitable for most high-resolution scenarios
+
+**When to use custom tiling:**
 - High-resolution images (>1920x1080)
 - Small fire/smoke at distance
-- Need better small object detection
+- Cannot install SAHI dependencies
 
 **Basic usage:**
 ```bash
@@ -440,6 +506,22 @@ python tiling_inference.py \
 - JSON files with all detections
 - Visualization images with tile grid overlay
 - Summary statistics
+
+---
+
+#### Resolution Guidelines
+
+| Image Resolution | Recommended Method | Notes |
+|------------------|-------------------|-------|
+| **≤1920×1080** | `test.py` (standard) | Optimal performance |
+| **2560×1440** | `tiling_inference.py` | Consider for small objects |
+| **4K (3840×2160)** | `tiling_inference.py` or SAHI | Tiling beneficial |
+| **8K+** | SAHI (optional) | Advanced merge needed |
+
+**General Recommendation:**
+- **Standard resolution**: Use `test.py` for best results
+- **High resolution (4K+)**: Use `tiling_inference.py` (no extra dependencies)
+- **Production/Advanced**: Optionally use SAHI in separate environment
 
 **Trade-offs:**
 - ✅ Better small object detection (+5-15% on high-res images)

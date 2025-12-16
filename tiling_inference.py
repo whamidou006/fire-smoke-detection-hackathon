@@ -1,10 +1,16 @@
 """
 Fire/Smoke Detection with Tiling Inference - Standalone Tool
 
-This is a standalone script for processing high-resolution images using tiling inference.
-Use this script when you need to process individual images with sliding window detection.
+This script implements sliding window inference for processing high-resolution images.
+Designed for scenarios where images exceed standard resolution or require fine-grained analysis.
 
 For standard model evaluation on the validation set, use test.py instead.
+
+⚠️  NOTE: Optimized for high-resolution images (4K+). For standard resolution (≤1920×1080),
+    direct inference is recommended for optimal performance.
+
+💡 TIP: For production deployments with advanced merge strategies, consider sahi_inference.py
+   (requires: pip install sahi). SAHI provides NMS, WBF, and NMW postprocessing options.
 
 Usage:
     # Single image
@@ -13,10 +19,13 @@ Usage:
     # Entire directory
     python tiling_inference.py --model best.pt --image /path/to/images/ --output results/
     
-    # Custom settings
+    # Custom settings for 4K+ images
     python tiling_inference.py --model best.pt --image image.jpg --tile-size 1280 --overlap 0.3
+    
+    # Alternative: SAHI for advanced use cases
+    python sahi_inference.py --model best.pt --image 4k_image.jpg --slice-size 1920 --overlap 0.3
 
-Implements sliding window inference for high-resolution images and better small object detection
+Implements sliding window inference for high-resolution images and enhanced small object detection
 """
 import numpy as np
 import cv2
@@ -353,7 +362,8 @@ class TilingInference:
         self,
         image_path: str,
         output_dir: Optional[str] = None,
-        visualize: bool = True
+        visualize: bool = True,
+        verbose: bool = True
     ) -> dict:
         """
         Process a single image with tiling
@@ -362,6 +372,7 @@ class TilingInference:
             image_path: Path to input image
             output_dir: Directory to save results (optional)
             visualize: Whether to save visualization
+            verbose: Whether to print processing details (default: True)
             
         Returns:
             Result dict with detections and metadata
@@ -398,13 +409,15 @@ class TilingInference:
             json_path = output_dir / f"{Path(image_path).stem}_detections.json"
             with open(json_path, 'w') as f:
                 json.dump(result, f, indent=2)
-            print(f"💾 Saved detections: {json_path}")
+            if verbose:
+                print(f"💾 Saved detections: {json_path}")
             
             # Save visualization
             if visualize and vis_image is not None:
                 vis_path = output_dir / f"{Path(image_path).stem}_tiled.jpg"
                 cv2.imwrite(str(vis_path), vis_image)
-                print(f"🖼️  Saved visualization: {vis_path}")
+                if verbose:
+                    print(f"🖼️  Saved visualization: {vis_path}")
         
         return result
 
@@ -560,6 +573,7 @@ def main():
     parser.add_argument('--model', type=str, required=True, help='Path to YOLO model weights')
     parser.add_argument('--image', type=str, required=True, help='Path to input image or directory')
     parser.add_argument('--output', type=str, default='tiling_results', help='Output directory')
+    parser.add_argument('--labels', type=str, default=None, help='Path to ground truth labels directory (optional, auto-detected if not provided)')
     parser.add_argument('--tile-size', type=int, default=640, help='Tile size (default: 640)')
     parser.add_argument('--overlap', type=float, default=0.2, help='Overlap ratio (default: 0.2)')
     parser.add_argument('--conf', type=float, default=0.25, help='Confidence threshold (default: 0.25)')
@@ -608,17 +622,18 @@ def main():
         all_metrics = []
         has_ground_truth = False
         
-        for img_file in image_files:
-            print(f"\n📷 Processing: {img_file.name}")
+        # Use tqdm progress bar instead of per-image logging
+        for img_file in tqdm(image_files, desc="Processing images", unit="img"):
             result = tiler.process_image(
                 str(img_file),
                 output_dir=args.output,
-                visualize=not args.no_visualize
+                visualize=not args.no_visualize,
+                verbose=False  # Suppress per-image output
             )
             all_results.append(result)
             
             # Try to load ground truth and calculate metrics
-            ground_truths = load_ground_truth(str(img_file))
+            ground_truths = load_ground_truth(str(img_file), labels_dir=args.labels)
             if ground_truths or Path(img_file).parent.parent.name in ['test', 'val']:
                 # Ground truth available or in test/val directory
                 has_ground_truth = True
