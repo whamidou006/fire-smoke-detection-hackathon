@@ -189,7 +189,7 @@ Available models:
         
         # Training duration (extended for better convergence)
         'epochs': 200,
-        'patience': 75,
+        'patience': 50,
         
         # Image and batch
         'imgsz': 640,
@@ -208,15 +208,15 @@ Available models:
         
         # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
-        'lr0': 0.002,        # Increased for faster convergence
+        'lr0': 0.001,        # Increased for faster convergence
         'lrf': 0.001,        # Lower final LR for fine-tuning
-        'weight_decay': 0.001,  # Stronger regularization
-        'warmup_epochs': 10,    # Longer warmup
+        'weight_decay': 0.0001,  # Stronger regularization
+        'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,
         
         # Loss weights (false positive reduction - stricter classification)
-        'cls': 0.7,   # Classification loss weight (↑ from 0.5 - penalize FP more)
-        'box': 4.0,   # Box regression loss weight (↓ from 5.0 - less localization focus)
+        'cls': 0.3,   # Classification loss weight (↑ from 0.5 - penalize FP more)
+        'box': 7.5,   # Box regression loss weight (↓ from 5.0 - less localization focus)
         'dfl': 1.5,   # Distribution focal loss weight
         
         # Data augmentation (enhanced for fire/smoke robustness)
