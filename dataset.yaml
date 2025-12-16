@@ -1,14 +1,19 @@
 # AlertCalifornia Fire/Smoke Detection Dataset Configuration
-# Dataset: Fire_data_v2_yolo_with_blank_images_and_false_positives
-# Total: 15,323 train images (7,269 with objects, 8,054 negative samples)
-#        382 test images (292 with objects, 90 negative samples)
+# Dataset: Fire_data_v3_with_hard_examples (includes hard negatives/positives from current_best)
+# Total: 19,352 train images (13,133 original + 1,963 FN + 4,256 FP)
+#        382 test images (unchanged)
 # Classes: smoke (94%), fire (6%)
+# Hard examples: 1,963 fires model missed + 4,256 false alarm images
 
 # Dataset path (absolute)
-path: /home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/data/Fire_data_v2_yolo_with_blank_images_and_false_positives
+# Original dataset (v2):
+# path: /home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/data/Fire_data_v2_yolo_with_blank_images_and_false_positives
+
+# New dataset with hard examples (v3):
+path: /home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/data/Fire_data_v3_with_hard_examples
 
 # Splits
-train: train/images  # 15,323 images
+train: train/images  # 19,352 images (13,133 + 1,963 FN + 4,256 FP)
 val: test/images     # 382 images (using test as validation)
 
 # Classes
