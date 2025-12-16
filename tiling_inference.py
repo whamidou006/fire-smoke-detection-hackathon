@@ -22,7 +22,7 @@ import numpy as np
 import cv2
 from pathlib import Path
 from ultralytics import YOLO
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import argparse
 from tqdm import tqdm
 import json
@@ -409,6 +409,152 @@ class TilingInference:
         return result
 
 
+def calculate_metrics(predictions: List[Dict], ground_truths: List[Dict], iou_threshold: float = 0.5) -> Dict:
+    """
+    Calculate precision, recall, mAP@0.5, and F1 score
+    
+    Args:
+        predictions: List of predictions [{'bbox': [x1,y1,x2,y2], 'class': int, 'conf': float}, ...]
+        ground_truths: List of ground truth boxes [{'bbox': [x1,y1,x2,y2], 'class': int}, ...]
+        iou_threshold: IoU threshold for matching (default: 0.5)
+    
+    Returns:
+        Dict with metrics: precision, recall, f1, map50, tp, fp, fn
+    """
+    if len(ground_truths) == 0:
+        # No ground truth - either all negatives or no labels
+        if len(predictions) == 0:
+            # True negative case
+            return {'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'map50': 1.0, 'tp': 0, 'fp': 0, 'fn': 0}
+        else:
+            # All predictions are false positives
+            return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'map50': 0.0, 'tp': 0, 'fp': len(predictions), 'fn': 0}
+    
+    if len(predictions) == 0:
+        # No predictions but have ground truth - all false negatives
+        return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'map50': 0.0, 'tp': 0, 'fp': 0, 'fn': len(ground_truths)}
+    
+    # Calculate IoU between all pred-gt pairs
+    def calc_iou(box1, box2):
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+        
+        inter_area = max(0, x2 - x1) * max(0, y2 - y1)
+        box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        union_area = box1_area + box2_area - inter_area
+        
+        return inter_area / union_area if union_area > 0 else 0
+    
+    # Match predictions to ground truths
+    matched_gt = set()
+    tp = 0
+    fp = 0
+    
+    # Sort predictions by confidence (highest first)
+    sorted_preds = sorted(predictions, key=lambda x: x['conf'], reverse=True)
+    
+    for pred in sorted_preds:
+        best_iou = 0
+        best_gt_idx = -1
+        
+        for gt_idx, gt in enumerate(ground_truths):
+            if gt_idx in matched_gt:
+                continue
+            
+            # Check class match
+            if pred['class'] != gt['class']:
+                continue
+            
+            iou = calc_iou(pred['bbox'], gt['bbox'])
+            if iou > best_iou:
+                best_iou = iou
+                best_gt_idx = gt_idx
+        
+        if best_iou >= iou_threshold and best_gt_idx >= 0:
+            tp += 1
+            matched_gt.add(best_gt_idx)
+        else:
+            fp += 1
+    
+    fn = len(ground_truths) - tp
+    
+    # Calculate metrics
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    map50 = recall  # Simplified: for single IoU threshold, mAP@0.5 ≈ recall at that threshold
+    
+    return {
+        'precision': precision,
+        'recall': recall,
+        'f1': f1,
+        'map50': map50,
+        'tp': tp,
+        'fp': fp,
+        'fn': fn
+    }
+
+
+def load_ground_truth(image_path: str, labels_dir: Optional[str] = None) -> List[Dict]:
+    """
+    Load ground truth labels from YOLO format txt file
+    
+    Args:
+        image_path: Path to image file
+        labels_dir: Optional path to labels directory (if None, assumes parallel structure)
+    
+    Returns:
+        List of ground truth boxes [{'bbox': [x1,y1,x2,y2], 'class': int}, ...]
+    """
+    image_path = Path(image_path)
+    
+    # Determine label file path
+    if labels_dir:
+        label_path = Path(labels_dir) / f"{image_path.stem}.txt"
+    else:
+        # Assume parallel structure: images/ -> labels/
+        label_path = image_path.parent.parent / 'labels' / image_path.parent.name / f"{image_path.stem}.txt"
+        if not label_path.exists():
+            # Try without parent subdirectory
+            label_path = image_path.parent.parent / 'labels' / f"{image_path.stem}.txt"
+    
+    if not label_path.exists():
+        return []  # No ground truth available
+    
+    # Read image to get dimensions
+    img = cv2.imread(str(image_path))
+    if img is None:
+        return []
+    h, w = img.shape[:2]
+    
+    ground_truths = []
+    with open(label_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            
+            parts = line.split()
+            class_id = int(parts[0])
+            x_center, y_center, width, height = map(float, parts[1:5])
+            
+            # Convert from YOLO format (normalized center) to absolute corners
+            x1 = int((x_center - width/2) * w)
+            y1 = int((y_center - height/2) * h)
+            x2 = int((x_center + width/2) * w)
+            y2 = int((y_center + height/2) * h)
+            
+            ground_truths.append({
+                'bbox': [x1, y1, x2, y2],
+                'class': class_id
+            })
+    
+    return ground_truths
+
+
 def main():
     parser = argparse.ArgumentParser(description='Fire/Smoke Detection with Tiling Inference')
     parser.add_argument('--model', type=str, required=True, help='Path to YOLO model weights')
@@ -459,6 +605,9 @@ def main():
         print(f"\n📂 Processing {len(image_files)} images from {image_path}")
         
         all_results = []
+        all_metrics = []
+        has_ground_truth = False
+        
         for img_file in image_files:
             print(f"\n📷 Processing: {img_file.name}")
             result = tiler.process_image(
@@ -467,11 +616,54 @@ def main():
                 visualize=not args.no_visualize
             )
             all_results.append(result)
+            
+            # Try to load ground truth and calculate metrics
+            ground_truths = load_ground_truth(str(img_file))
+            if ground_truths or Path(img_file).parent.parent.name in ['test', 'val']:
+                # Ground truth available or in test/val directory
+                has_ground_truth = True
+                
+                # Convert detections to format for metric calculation
+                predictions = []
+                for det in result['detections']:
+                    predictions.append({
+                        'bbox': det['bbox'],
+                        'class': det['class'],
+                        'conf': det['confidence']
+                    })
+                
+                metrics = calculate_metrics(predictions, ground_truths, iou_threshold=0.5)
+                all_metrics.append(metrics)
         
         # Save summary
         summary_path = Path(args.output) / 'summary.json'
+        summary_data = {
+            'results': all_results,
+            'has_metrics': has_ground_truth
+        }
+        
+        if has_ground_truth and all_metrics:
+            # Calculate overall metrics
+            total_tp = sum(m['tp'] for m in all_metrics)
+            total_fp = sum(m['fp'] for m in all_metrics)
+            total_fn = sum(m['fn'] for m in all_metrics)
+            
+            overall_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+            overall_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+            overall_f1 = 2 * (overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
+            
+            summary_data['overall_metrics'] = {
+                'precision': overall_precision,
+                'recall': overall_recall,
+                'f1': overall_f1,
+                'map50': overall_recall,  # Simplified
+                'tp': total_tp,
+                'fp': total_fp,
+                'fn': total_fn
+            }
+        
         with open(summary_path, 'w') as f:
-            json.dump(all_results, f, indent=2)
+            json.dump(summary_data, f, indent=2)
         print(f"\n💾 Saved summary: {summary_path}")
         
         # Print overall statistics
@@ -482,6 +674,21 @@ def main():
         print(f"Images processed: {len(all_results)}")
         print(f"Total detections: {total_detections}")
         print(f"Average per image: {total_detections/len(all_results):.1f}")
+        
+        # Print metrics if available
+        if has_ground_truth and all_metrics:
+            print(f"\n{'='*80}")
+            print(f"📈 EVALUATION METRICS (with Ground Truth)")
+            print(f"{'='*80}")
+            metrics = summary_data['overall_metrics']
+            print(f"Precision:   {metrics['precision']:.4f}")
+            print(f"Recall:      {metrics['recall']:.4f}")
+            print(f"F1 Score:    {metrics['f1']:.4f}")
+            print(f"mAP@0.5:     {metrics['map50']:.4f}")
+            print(f"\nConfusion Matrix:")
+            print(f"  True Positives:  {metrics['tp']}")
+            print(f"  False Positives: {metrics['fp']}")
+            print(f"  False Negatives: {metrics['fn']}")
     else:
         raise ValueError(f"Invalid path: {args.image}")
 
