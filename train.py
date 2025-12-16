@@ -31,6 +31,102 @@ MODEL_CONFIGS = {
     'pretrain': ('/home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/weights/pretrain_yolov8.pt', 128),
 }
 
+# ============================================================================
+# HYPERPARAMETER CONFIGURATIONS
+# ============================================================================
+# Different experimental configurations to optimize recall vs precision trade-off
+
+HYPERPARAMETER_CONFIGS = {
+    'baseline': {
+        'description': 'Current baseline configuration',
+        'cls': 0.3,
+        'box': 7.5,
+        'dfl': 1.5,
+        'lr0': 0.001,
+        'mixup': 0.0,
+        'copy_paste': 0.0,
+        'iou': 0.5,       # IoU threshold for NMS
+        'conf': None,     # Confidence threshold (None = default)
+    },
+    
+    'recall_moderate': {
+        'description': 'Moderate recall boost with FP reduction',
+        'cls': 0.25,      # ↓ Lower classification penalty → more detections
+        'box': 8.0,       # ↑ Better localization → fewer false boxes
+        'dfl': 1.6,       # ↑ Better box quality
+        'lr0': 0.001,
+        'mixup': 0.1,     # Add mixup for hard negatives
+        'copy_paste': 0.0,
+        'iou': 0.45,      # ↓ Lower IoU (keep more detections)
+        'conf': None,
+    },
+    
+    'recall_aggressive': {
+        'description': 'Aggressive recall boost (catch more fires)',
+        'cls': 0.2,       # ↓↓ Much lower classification penalty
+        'box': 8.5,       # ↑↑ Stricter box quality
+        'dfl': 1.8,       # ↑ Higher DFL
+        'lr0': 0.0015,    # Slightly higher LR
+        'mixup': 0.15,    # More mixup
+        'copy_paste': 0.1,
+        'iou': 0.4,       # ↓↓ Much lower IoU
+        'conf': None,
+    },
+    
+    'reduce_fp': {
+        'description': 'Focus on reducing false positives',
+        'cls': 0.4,       # ↑ Higher classification penalty
+        'box': 7.0,       # Standard box weight
+        'dfl': 1.5,
+        'lr0': 0.001,
+        'mixup': 0.2,     # More mixup for FP reduction
+        'copy_paste': 0.0,
+        'iou': 0.55,      # ↑ Higher IoU (stricter NMS)
+        'conf': None,
+    },
+    
+    'balanced': {
+        'description': 'Balanced recall and precision (recommended)',
+        'cls': 0.27,      # Slightly lower than baseline
+        'box': 7.8,       # Slightly higher than baseline
+        'dfl': 1.6,
+        'lr0': 0.0012,    # Slightly higher LR
+        'mixup': 0.1,
+        'copy_paste': 0.05,
+        'iou': 0.48,      # Slightly lower IoU
+        'conf': None,
+    },
+    
+    'high_lr': {
+        'description': 'Higher learning rate for faster convergence',
+        'cls': 0.25,
+        'box': 8.0,
+        'dfl': 1.6,
+        'lr0': 0.002,     # ↑↑ Double LR
+        'mixup': 0.1,
+        'copy_paste': 0.0,
+        'iou': 0.45,
+        'conf': None,
+    },
+    
+    'conservative_aug': {
+        'description': 'Very conservative augmentation with minimal changes',
+        'cls': 0.3,
+        'box': 7.5,
+        'dfl': 1.5,
+        'lr0': 0.001,
+        'mixup': 0.0,
+        'copy_paste': 0.0,
+        'iou': 0.5,
+        'conf': None,
+        # Augmentation overrides (applied separately)
+        'hsv_h': 0.005,   # Very minimal hue
+        'hsv_s': 0.2,     # Reduced saturation
+        'hsv_v': 0.2,     # Reduced brightness
+        'scale': 0.1,     # Minimal scale
+    },
+}
+
 def download_model(model_name):
     """
     Download YOLOv8 model using Python urllib if not already present.
@@ -146,6 +242,16 @@ Examples:
   python train.py --model pretrain   # Continue from pretrain_yolov8.pt
   python train.py --model n --batch 64  # Custom batch size
   python train.py --model /path/to/custom.pt --batch 32  # Custom model
+  
+  # Hyperparameter configurations:
+  python train.py --model s --config baseline            # Default config
+  python train.py --model s --config recall_moderate     # Boost recall moderately
+  python train.py --model s --config recall_aggressive   # Aggressive recall (catch more fires)
+  python train.py --model s --config reduce_fp           # Reduce false positives
+  python train.py --model s --config balanced            # Balanced approach (recommended)
+  python train.py --model s --config high_lr             # Higher learning rate
+  python train.py --model s --config conservative_aug    # Very conservative augmentation
+  python train.py --model pretrain --config balanced --batch 128  # Full optimization
 
 Available YOLOv8 models:
   n        YOLOv8n (6MB, 3.2M params, batch=128)
@@ -176,6 +282,13 @@ Other:
         type=int,
         default=None,
         help='Batch size (default: auto-selected based on model)'
+    )
+    parser.add_argument(
+        '--config', '-c',
+        type=str,
+        default='baseline',
+        choices=list(HYPERPARAMETER_CONFIGS.keys()),
+        help='Hyperparameter configuration: baseline/recall_moderate/recall_aggressive/reduce_fp/balanced/high_lr (default: baseline)'
     )
     
     args = parser.parse_args()
@@ -219,6 +332,14 @@ Other:
     print(f"📊 Batch Size: {BATCH_SIZE}")
     
     # ============================================================================
+    # HYPERPARAMETER CONFIGURATION SELECTION
+    # ============================================================================
+    hp_config = HYPERPARAMETER_CONFIGS[args.config]
+    print(f"⚙️  Hyperparameter Config: {args.config}")
+    print(f"   {hp_config['description']}")
+    print(f"   Loss weights: cls={hp_config['cls']}, box={hp_config['box']}, dfl={hp_config['dfl']}")
+    
+    # ============================================================================
     # DOWNLOAD MODEL IF NEEDED
     # ============================================================================
     # Ensure model is downloaded before loading
@@ -247,6 +368,24 @@ Other:
     # ============================================================================
     # TRAINING CONFIGURATION
     # ============================================================================
+    
+    # Start with base augmentation values
+    aug_config = {
+        'hsv_h': 0.01,       # Minimal hue shift (preserve fire colors)
+        'hsv_s': 0.4,        # Moderate saturation (smoke density variations)
+        'hsv_v': 0.3,        # Moderate brightness (day/night)
+        'scale': 0.2,        # Moderate scale variation
+    }
+    
+    # Override augmentation if conservative_aug config is selected
+    if args.config == 'conservative_aug':
+        aug_config.update({
+            'hsv_h': hp_config.get('hsv_h', 0.01),
+            'hsv_s': hp_config.get('hsv_s', 0.4),
+            'hsv_v': hp_config.get('hsv_v', 0.3),
+            'scale': hp_config.get('scale', 0.2),
+        })
+    
     config = {
         # Dataset
         'data': 'dataset.yaml',
@@ -266,41 +405,45 @@ Other:
         
         # Project settings
         'project': 'runs',
-        'name': f'{MODEL_NAME}_fire_smoke',
+        'name': f'{MODEL_NAME}_{args.config}',  # Include config name in run name
         'exist_ok': True,
         'save_period': 10,
         
         # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
-        'lr0': 0.001,        # Initial learning rate
+        'lr0': hp_config['lr0'],        # From hyperparameter config
         'lrf': 0.01,         # Final LR factor (more gradual decay for better convergence)
         'weight_decay': 0.0005,  # Regularization (balanced)
         'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,
         
-        # Loss weights (false positive reduction - stricter classification)
-        'cls': 0.3,   # Classification loss weight (↑ from 0.5 - penalize FP more)
-        'box': 7.5,   # Box regression loss weight (↓ from 5.0 - less localization focus)
-        'dfl': 1.5,   # Distribution focal loss weight
+        # Loss weights (from selected hyperparameter configuration)
+        'cls': hp_config['cls'],   # Classification loss weight
+        'box': hp_config['box'],   # Box regression loss weight
+        'dfl': hp_config['dfl'],   # Distribution focal loss weight
+        
+        # NMS and confidence thresholds
+        'iou': hp_config['iou'],   # IoU threshold for NMS
+        # 'conf' is not a training parameter in Ultralytics, only for inference
         
         # Data augmentation (CONSERVATIVE for fire/smoke - based on train_alertcal_optimized.py)
         # Fire/smoke have distinctive characteristics that aggressive augmentation can distort:
         # - Fire colors (orange/red) shouldn't shift much
         # - Smoke rises upward (rotation breaks this pattern)
         # - Smoke density depends on saturation/brightness
-        'hsv_h': 0.01,       # Minimal hue shift (preserve fire colors)
-        'hsv_s': 0.4,        # Moderate saturation (smoke density variations)
-        'hsv_v': 0.3,        # Moderate brightness (day/night)
+        'hsv_h': aug_config['hsv_h'],       # Hue shift
+        'hsv_s': aug_config['hsv_s'],       # Saturation variation
+        'hsv_v': aug_config['hsv_v'],       # Brightness variation
         'degrees': 0.0,      # NO rotation (smoke orientation matters!)
         'translate': 0.05,   # Minimal translation
-        'scale': 0.2,        # Moderate scale variation
+        'scale': aug_config['scale'],        # Scale variation
         'shear': 0.0,        # No shear (shape matters)
         'perspective': 0.0,  # No perspective (keep natural)
         'flipud': 0.0,       # No vertical flip (smoke rises)
         'fliplr': 0.5,       # Horizontal flip only
         'mosaic': 1.0,       # Keep mosaic (helps with context)
-        'mixup': 0.0,        # Disable mixup (can create unrealistic fire/smoke)
-        'copy_paste': 0.0,   # Disable copy-paste (can look artificial)
+        'mixup': hp_config['mixup'],        # From hyperparameter config
+        'copy_paste': hp_config['copy_paste'],   # From hyperparameter config
         'erasing': 0.0,      # No random erasing (fire/smoke shouldn't disappear)
         
         # Validation
@@ -313,12 +456,16 @@ Other:
         'fraction': 1.0,     # Use full dataset
     }
     
-    print(f"\n⚙️  Configuration:")
+    print(f"\n⚙️  Training Configuration:")
     print(f"  • Dataset: AlertCalifornia Fire/Smoke (15,323 train, 382 val)")
     print(f"  • Epochs: {config['epochs']} (patience: {config['patience']})")
     print(f"  • Optimizer: {config['optimizer']} (lr={config['lr0']})")
-    print(f"  • Augmentation: Conservative (no rotation, vertical flip)")
-    print(f"  • Loss weights: cls={config['cls']}, box={config['box']}")
+    print(f"  • Config: {args.config} - {hp_config['description']}")
+    print(f"  • Loss weights: cls={config['cls']}, box={config['box']}, dfl={config['dfl']}")
+    print(f"  • NMS IoU threshold: {config['iou']}")
+    print(f"  • Augmentation: mixup={config['mixup']}, copy_paste={config['copy_paste']}")
+    print(f"  • HSV aug: h={config['hsv_h']}, s={config['hsv_s']}, v={config['hsv_v']}")
+    print(f"  • Conservative augmentation (no rotation, no vertical flip)")
     
     # ============================================================================
     # START TRAINING
