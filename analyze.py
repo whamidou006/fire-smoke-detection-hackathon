@@ -43,8 +43,8 @@ def load_baseline_metrics(dataset_yaml):
                 batch=8,
                 imgsz=640,
                 verbose=False,
-                conf=0.01,
-                iou=0.2,
+                conf=0.15,  # Optimized threshold from threshold optimization
+                iou=0.4,    # Optimized threshold from threshold optimization
                 workers=0
             )
             

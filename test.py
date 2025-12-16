@@ -161,10 +161,10 @@ def main():
                         help='Path to dataset YAML (default: dataset.yaml)')
     parser.add_argument('--batch', type=int, default=8,
                         help='Batch size (default: 8)')
-    parser.add_argument('--conf', type=float, default=0.01,
-                        help='Confidence threshold (default: 0.01)')
-    parser.add_argument('--iou', type=float, default=0.2,
-                        help='IoU threshold for NMS (default: 0.2)')
+    parser.add_argument('--conf', type=float, default=0.15,
+                        help='Confidence threshold (default: 0.15, optimized for recall)')
+    parser.add_argument('--iou', type=float, default=0.4,
+                        help='IoU threshold for NMS (default: 0.4, optimized for recall)')
     parser.add_argument('--compare', action='store_true',
                         help='Compare with baseline models')
     parser.add_argument('--save-json', action='store_true',
