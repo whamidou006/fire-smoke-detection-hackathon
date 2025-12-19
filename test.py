@@ -55,7 +55,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     results = model.val(
         data=data_yaml,
         batch=batch,
-        imgsz=640,
+        imgsz=1024,
         conf=conf,
         iou=iou,
         workers=0,
@@ -66,6 +66,15 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     )
     
     # Extract metrics
+    precision = float(results.box.mp)
+    recall = float(results.box.mr)
+    
+    # Calculate F1 score
+    if precision + recall > 0:
+        f1_score = 2 * (precision * recall) / (precision + recall)
+    else:
+        f1_score = 0.0
+    
     metrics = {
         'model_name': Path(model_path).name,
         'model_path': str(model_path),
@@ -73,8 +82,9 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
         'parameters': total_params,
         'map50': float(results.box.map50),
         'map50_95': float(results.box.map),
-        'precision': float(results.box.mp),
-        'recall': float(results.box.mr),
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1_score,
         'fitness': float(results.fitness),
     }
     
@@ -88,6 +98,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     print(f"  mAP@0.5:0.95: {metrics['map50_95']:.4f}")
     print(f"  Precision:    {metrics['precision']:.4f}")
     print(f"  Recall:       {metrics['recall']:.4f}")
+    print(f"  F1 Score:     {metrics['f1_score']:.4f}")
     print(f"  Fitness:      {metrics['fitness']:.4f}")
     
     return metrics
@@ -131,7 +142,7 @@ def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_sc
         print("\n" + "="*80)
         print("📊 COMPARISON TABLE")
         print("="*80)
-        print(f"\n{'Model':<25} {'Size':>8} {'Params':>10} {'mAP@0.5':>10} {'Prec':>8} {'Recall':>8}")
+        print(f"\n{'Model':<25} {'Size':>8} {'Params':>10} {'mAP@0.5':>10} {'Prec':>8} {'Recall':>8} {'F1':>8}")
         print("-"*80)
         
         # Sort by mAP@0.5
@@ -142,7 +153,8 @@ def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_sc
                   f"{metrics['parameters']/1e6:>9.1f}M "
                   f"{metrics['map50']:>10.4f} "
                   f"{metrics['precision']:>8.4f} "
-                  f"{metrics['recall']:>8.4f}")
+                  f"{metrics['recall']:>8.4f} "
+                  f"{metrics['f1_score']:>8.4f}")
         
         # Show best model
         best_name, best_metrics = sorted_results[0]
@@ -161,10 +173,10 @@ def main():
                         help='Path to dataset YAML (default: dataset.yaml)')
     parser.add_argument('--batch', type=int, default=8,
                         help='Batch size (default: 8)')
-    parser.add_argument('--conf', type=float, default=0.15,
-                        help='Confidence threshold (default: 0.15, optimized for recall)')
-    parser.add_argument('--iou', type=float, default=0.4,
-                        help='IoU threshold for NMS (default: 0.4, optimized for recall)')
+    parser.add_argument('--conf', type=float, default=0.01,
+                        help='Confidence threshold (default: 0.01, optimized for recall)')
+    parser.add_argument('--iou', type=float, default=0.2,
+                        help='IoU threshold for NMS (default: 0.2, optimized for recall)')
     parser.add_argument('--compare', action='store_true',
                         help='Compare with baseline models')
     parser.add_argument('--save-json', action='store_true',

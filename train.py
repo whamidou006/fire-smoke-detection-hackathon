@@ -90,11 +90,12 @@ HYPERPARAMETER_CONFIGS = {
         'cls': 0.27,      # Slightly lower than baseline
         'box': 7.8,       # Slightly higher than baseline
         'dfl': 1.6,
-        'lr0': 0.0012,    # Slightly higher LR
+        'lr0': 1.0e-05,    # Slightly higher LR
         'mixup': 0.1,
         'copy_paste': 0.05,
-        'iou': 0.48,      # Slightly lower IoU
-        'conf': None,
+        'iou': 0.2,      # Slightly lower IoU
+        'conf': 0.01,
+        'scale': 0.0,     # Disable multi-scale augmentation
     },
     
     'high_lr': {
@@ -290,6 +291,12 @@ Other:
         choices=list(HYPERPARAMETER_CONFIGS.keys()),
         help='Hyperparameter configuration: baseline/recall_moderate/recall_aggressive/reduce_fp/balanced/high_lr (default: baseline)'
     )
+    parser.add_argument(
+        '--device', '-d',
+        type=str,
+        default='0',
+        help='CUDA device(s): 0 or 0,1,2,3 for multi-GPU (default: 0)'
+    )
     
     args = parser.parse_args()
     
@@ -329,7 +336,17 @@ Other:
         MODEL_NAME = Path(MODEL_PATH).stem
     
     print(f"\n📦 Model: {MODEL_NAME}")
-    print(f"📊 Batch Size: {BATCH_SIZE}")
+    
+    # Adjust batch size for multi-GPU (warn if potentially too large)
+    num_devices = len(args.device.split(','))
+    if num_devices > 1:
+        batch_per_gpu = BATCH_SIZE / num_devices
+        print(f"📊 Batch Size: {BATCH_SIZE} total ({batch_per_gpu:.0f} per GPU × {num_devices} GPUs)")
+        if batch_per_gpu > 48 and args.model in ['l', 'x', '11l', '11x']:
+            print(f"⚠️  WARNING: {batch_per_gpu:.0f} samples per GPU might cause OOM for large models!")
+            print(f"   Consider reducing batch size (e.g., --batch {int(BATCH_SIZE * 0.5)} or --batch {int(BATCH_SIZE * 0.75)})")
+    else:
+        print(f"📊 Batch Size: {BATCH_SIZE}")
     
     # ============================================================================
     # HYPERPARAMETER CONFIGURATION SELECTION
@@ -374,7 +391,7 @@ Other:
         'hsv_h': 0.01,       # Minimal hue shift (preserve fire colors)
         'hsv_s': 0.4,        # Moderate saturation (smoke density variations)
         'hsv_v': 0.3,        # Moderate brightness (day/night)
-        'scale': 0.2,        # Moderate scale variation
+        'scale': hp_config.get('scale', 0.2),  # Use scale from config if available
     }
     
     # Override augmentation if conservative_aug config is selected
@@ -383,7 +400,6 @@ Other:
             'hsv_h': hp_config.get('hsv_h', 0.01),
             'hsv_s': hp_config.get('hsv_s', 0.4),
             'hsv_v': hp_config.get('hsv_v', 0.3),
-            'scale': hp_config.get('scale', 0.2),
         })
     
     config = {
@@ -391,13 +407,13 @@ Other:
         'data': 'dataset.yaml',
         
         # Training duration (extended for better convergence)
-        'epochs': 200,
-        'patience': 50,
+        'epochs': 150,
+        'patience': 0,  # Disable early stopping (0 = train all epochs)
         
         # Image and batch
-        'imgsz': 640,
+        'imgsz': 1024,
         'batch': BATCH_SIZE,
-        'device': 0,
+        'device': args.device,  # Support single or multi-GPU
         'workers': 0,  # Avoid shared memory issues
         
         # Multi-scale training (improves robustness across scales)
@@ -407,12 +423,12 @@ Other:
         'project': 'runs',
         'name': f'{MODEL_NAME}_{args.config}',  # Include config name in run name
         'exist_ok': True,
-        'save_period': 10,
+        'save_period': 2,  # Save checkpoint every 2 epochs
         
         # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
         'lr0': hp_config['lr0'],        # From hyperparameter config
-        'lrf': 0.01,         # Final LR factor (more gradual decay for better convergence)
+        'lrf': 1e-6,         # Final LR factor (more gradual decay for better convergence)
         'weight_decay': 0.0005,  # Regularization (balanced)
         'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,

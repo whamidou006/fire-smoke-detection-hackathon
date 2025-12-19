@@ -65,14 +65,6 @@ def load_baseline_metrics(dataset_yaml, conf_threshold=0.15, iou_threshold=0.4):
         except Exception as e:
             print(f"✗ Error: {e}")
     
-    # If evaluation fails, use known values
-    if not baselines:
-        print("  ℹ️  Using cached baseline metrics")
-        baselines = {
-            'Current Best': {'map50': 0.4149, 'precision': 0.6461, 'recall': 0.3598},
-            'Pretrain YOLOv8': {'map50': 0.1944, 'precision': 0.3575, 'recall': 0.1650}
-        }
-    
     return baselines
 
 
@@ -376,8 +368,8 @@ Examples:
     parser.add_argument('--output', type=str, default='training_analysis.png', help='Output plot filename')
     parser.add_argument('--dataset', type=str, default='dataset.yaml', help='Dataset YAML for baseline evaluation')
     parser.add_argument('--no-baselines', action='store_true', help='Skip baseline evaluation')
-    parser.add_argument('--conf', type=float, default=0.15, help='Confidence threshold for baseline evaluation (default: 0.15)')
-    parser.add_argument('--iou', type=float, default=0.4, help='IoU threshold for baseline evaluation (default: 0.4)')
+    parser.add_argument('--conf', type=float, default=0.01, help='Confidence threshold for baseline evaluation (default: 0.15)')
+    parser.add_argument('--iou', type=float, default=0.2, help='IoU threshold for baseline evaluation (default: 0.4)')
     parser.add_argument('--test', type=str, metavar='MODEL', help='Run model testing (calls test.py)')
     parser.add_argument('--compare', action='store_true', help='Compare with baselines when testing')
     parser.add_argument('--multi-scale', action='store_true', help='Enable multi-scale validation when testing')

@@ -109,19 +109,37 @@ def coco_to_yolo(coco_bbox, img_width, img_height):
     Convert COCO bbox format [x, y, width, height] to YOLO format [x_center, y_center, width, height]
     All values normalized to [0, 1]
     
+    IMPORTANT: This function handles TWO types of COCO formats:
+    1. Standard COCO: Coordinates in pixels (values > 1.0)
+    2. Normalized COCO: Coordinates already in [0, 1] range (unusual but used in this dataset!)
+    
     Args:
-        coco_bbox: [x_min, y_min, width, height] in pixels
+        coco_bbox: [x_min, y_min, width, height] - can be in pixels OR already normalized [0,1]
         img_width: Image width in pixels
         img_height: Image height in pixels
         
     Returns:
-        [x_center, y_center, width, height] normalized
+        [x_center, y_center, width, height] normalized to [0, 1]
     """
     x, y, w, h = coco_bbox
-    x_center = (x + w / 2) / img_width
-    y_center = (y + h / 2) / img_height
-    width = w / img_width
-    height = h / img_height
+    
+    # CRITICAL FIX: Detect if coordinates are already normalized
+    # If all bbox values are <= 1.0, they're already normalized (not in pixels)
+    is_normalized = (x <= 1.0 and y <= 1.0 and w <= 1.0 and h <= 1.0)
+    
+    if is_normalized:
+        # Coordinates already normalized [0,1] - just convert format (x,y,w,h → x_center,y_center,w,h)
+        x_center = x + w / 2
+        y_center = y + h / 2
+        width = w
+        height = h
+    else:
+        # Standard COCO format: coordinates in pixels - normalize and convert
+        x_center = (x + w / 2) / img_width
+        y_center = (y + h / 2) / img_height
+        width = w / img_width
+        height = h / img_height
+    
     return [x_center, y_center, width, height]
 
 
@@ -193,10 +211,48 @@ def merge_datasets(dry_run=True):
     # Process FN TRAIN split
     fn_train_json = FN_DIR / "111225_export_train.json"
     fn_train_count = 0
+    fn_train_annotations = 0
+    validation_samples = []  # Store first 3 conversions for validation
     
     if fn_train_json.exists():
         with open(fn_train_json, 'r') as f:
             fn_data = json.load(f)
+        
+        # CRITICAL VALIDATION: Verify COCO categories are correct
+        categories = fn_data.get('categories', [])
+        print(f"   Validating COCO categories...")
+        
+        expected_categories = {
+            1: 'Smoke',
+            2: 'Fire'
+        }
+        
+        for cat in categories:
+            cat_id = cat['id']
+            cat_name = cat['name']
+            
+            if cat_id not in expected_categories:
+                error_msg = (
+                    f"\n❌ FATAL ERROR: Unexpected category ID {cat_id} in COCO JSON\n"
+                    f"   Found: {cat_id}: {cat_name}\n"
+                    f"   Expected: 1=Smoke, 2=Fire\n"
+                    f"   After conversion (category_id - 1): YOLO class {cat_id - 1}\n"
+                    f"   YOLO only supports classes 0 and 1!"
+                )
+                print(error_msg)
+                raise ValueError(error_msg)
+            
+            if expected_categories[cat_id] != cat_name:
+                error_msg = (
+                    f"\n❌ FATAL ERROR: Category name mismatch in COCO JSON\n"
+                    f"   Category {cat_id}: Expected '{expected_categories[cat_id]}', Found '{cat_name}'\n"
+                    f"   This may cause incorrect class labels!"
+                )
+                print(error_msg)
+                raise ValueError(error_msg)
+        
+        print(f"   ✓ COCO categories validated: {[(cat['id'], cat['name']) for cat in categories]}")
+        print(f"   ✓ YOLO mapping: 1→0 (Smoke), 2→1 (Fire)")
         
         # Build image id to filename map
         image_map = {img['id']: img for img in fn_data['images']}
@@ -242,25 +298,108 @@ def merge_datasets(dry_run=True):
                         continue
                 
                 for ann in annotations:
-                    category_id = ann['category_id'] - 1  # COCO is 1-indexed, YOLO is 0-indexed
+                    category_id = ann['category_id'] - 1  # COCO: 1=Smoke→0, 2=Fire→1
                     bbox = ann['bbox']
+                    
+                    # CRITICAL VALIDATION: Ensure category is valid (0=Smoke or 1=Fire)
+                    if category_id not in [0, 1]:
+                        error_msg = (
+                            f"\n❌ FATAL ERROR: Invalid category_id {category_id} in {img_path.name}\n"
+                            f"   COCO category_id: {ann['category_id']}\n"
+                            f"   YOLO category_id: {category_id} (must be 0 or 1)\n"
+                            f"   Expected: 0=Smoke, 1=Fire\n"
+                            f"   This indicates corrupted annotations or wrong category mapping!"
+                        )
+                        print(error_msg)
+                        raise ValueError(error_msg)
+                    
                     yolo_bbox = coco_to_yolo(bbox, img_width, img_height)
+                    
+                    # CRITICAL VALIDATION: Ensure all coordinates are in valid range [0, 1]
+                    if any(coord < 0 or coord > 1 for coord in yolo_bbox):
+                        error_msg = (
+                            f"\n❌ FATAL ERROR: Invalid YOLO bbox {yolo_bbox} for {img_path.name}\n"
+                            f"   Original COCO bbox: {bbox}\n"
+                            f"   Image size: {img_width}x{img_height}\n"
+                            f"   All coordinates must be in range [0, 1]\n"
+                            f"   This indicates a bug in coordinate conversion!"
+                        )
+                        print(error_msg)
+                        raise ValueError(error_msg)
+                    
+                    # Store sample for validation (first 3 annotations)
+                    if len(validation_samples) < 3:
+                        class_name = "Smoke" if category_id == 0 else "Fire"
+                        is_normalized = all(v <= 1.0 for v in bbox)
+                        validation_samples.append({
+                            'image': img_path.name,
+                            'class': class_name,
+                            'coco_bbox': bbox,
+                            'yolo_bbox': yolo_bbox,
+                            'is_normalized': is_normalized,
+                            'img_size': (img_width, img_height)
+                        })
+                    
                     yolo_lines.append(f"{category_id} {' '.join(map(str, yolo_bbox))}\n")
+                    fn_train_annotations += 1
                 
                 # Write YOLO label file
                 label_path = output_train_labels / f"fn_{img_path.stem}.txt"
                 with open(label_path, 'w') as f:
                     f.writelines(yolo_lines)
         
-        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_train_count} FN train images with annotations")
+        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_train_count} FN train images with {fn_train_annotations} annotations")
+        
+        # Print validation samples
+        if not dry_run and validation_samples:
+            print(f"\n   📋 Validation samples (COCO → YOLO conversion):")
+            for sample in validation_samples:
+                coco_format = "normalized [0,1]" if sample['is_normalized'] else "pixels"
+                print(f"      {sample['image']} ({sample['class']}):")
+                print(f"        COCO ({coco_format}): {[round(v, 6) for v in sample['coco_bbox']]}")
+                print(f"        YOLO (normalized):   {[round(v, 6) for v in sample['yolo_bbox']]}")
+                print(f"        Image size: {sample['img_size']} px")
     
     # Process FN TEST split
     fn_test_json = FN_DIR / "111225_export_test.json"
     fn_test_count = 0
+    fn_test_annotations = 0
     
     if fn_test_json.exists():
         with open(fn_test_json, 'r') as f:
             fn_test_data = json.load(f)
+        
+        # CRITICAL VALIDATION: Verify COCO categories are correct
+        test_categories = fn_test_data.get('categories', [])
+        print(f"   Validating TEST COCO categories...")
+        
+        expected_categories = {
+            1: 'Smoke',
+            2: 'Fire'
+        }
+        
+        for cat in test_categories:
+            cat_id = cat['id']
+            cat_name = cat['name']
+            
+            if cat_id not in expected_categories:
+                error_msg = (
+                    f"\n❌ FATAL ERROR: Unexpected category ID {cat_id} in TEST COCO JSON\n"
+                    f"   Found: {cat_id}: {cat_name}\n"
+                    f"   Expected: 1=Smoke, 2=Fire\n"
+                )
+                print(error_msg)
+                raise ValueError(error_msg)
+            
+            if expected_categories[cat_id] != cat_name:
+                error_msg = (
+                    f"\n❌ FATAL ERROR: Category name mismatch in TEST COCO JSON\n"
+                    f"   Category {cat_id}: Expected '{expected_categories[cat_id]}', Found '{cat_name}'\n"
+                )
+                print(error_msg)
+                raise ValueError(error_msg)
+        
+        print(f"   ✓ TEST COCO categories validated: {[(cat['id'], cat['name']) for cat in test_categories]}")
         
         # Build image id to filename map
         test_image_map = {img['id']: img for img in fn_test_data['images']}
@@ -303,17 +442,44 @@ def merge_datasets(dry_run=True):
                         continue
                 
                 for ann in annotations:
-                    category_id = ann['category_id'] - 1
+                    category_id = ann['category_id'] - 1  # COCO: 1=Smoke→0, 2=Fire→1
                     bbox = ann['bbox']
+                    
+                    # CRITICAL VALIDATION: Ensure category is valid (0=Smoke or 1=Fire)
+                    if category_id not in [0, 1]:
+                        error_msg = (
+                            f"\n❌ FATAL ERROR: Invalid category_id {category_id} in {img_path.name}\n"
+                            f"   COCO category_id: {ann['category_id']}\n"
+                            f"   YOLO category_id: {category_id} (must be 0 or 1)\n"
+                            f"   Expected: 0=Smoke, 1=Fire\n"
+                            f"   This indicates corrupted annotations or wrong category mapping!"
+                        )
+                        print(error_msg)
+                        raise ValueError(error_msg)
+                    
                     yolo_bbox = coco_to_yolo(bbox, img_width, img_height)
+                    
+                    # CRITICAL VALIDATION: Ensure all coordinates are in valid range [0, 1]
+                    if any(coord < 0 or coord > 1 for coord in yolo_bbox):
+                        error_msg = (
+                            f"\n❌ FATAL ERROR: Invalid YOLO bbox {yolo_bbox} for {img_path.name}\n"
+                            f"   Original COCO bbox: {bbox}\n"
+                            f"   Image size: {img_width}x{img_height}\n"
+                            f"   All coordinates must be in range [0, 1]\n"
+                            f"   This indicates a bug in coordinate conversion!"
+                        )
+                        print(error_msg)
+                        raise ValueError(error_msg)
+                    
                     yolo_lines.append(f"{category_id} {' '.join(map(str, yolo_bbox))}\n")
+                    fn_test_annotations += 1
                 
                 # Write YOLO label file
                 label_path = output_test_labels / f"fn_{img_path.stem}.txt"
                 with open(label_path, 'w') as f:
                     f.writelines(yolo_lines)
         
-        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_test_count} FN test images with annotations")
+        print(f"   {'Would add' if dry_run else '✓ Added'} {fn_test_count} FN test images with {fn_test_annotations} annotations")
     
     # Step 3: Add False Positives (hard negatives)
     print(f"\n📭 Step 3: Adding False Positives (hard negatives)...")
@@ -448,3 +614,8 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+

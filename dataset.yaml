@@ -26,4 +26,4 @@ names:
 # Based on v3 training set: 7,905 smoke (94.1%), 492 fire (5.9%)
 # smoke: 94.1% of instances -> weight = 1.0 (baseline)
 # fire: 5.9% of instances -> weight = 16.07 (7905/492 ratio, rounded to 16.0)
-class_weights: [1.0, 16.0]  # [smoke, fire] - updated for v3 dataset
+#class_weights: [1.0, 16.0]  # [smoke, fire] - updated for v3 dataset
