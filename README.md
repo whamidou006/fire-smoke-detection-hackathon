@@ -1,584 +1,176 @@
 # Fire/Smoke Detection Training Framework
 
-Production-ready training framework for AlertCalifornia fire/smoke detection using YOLOv8.
+Production-ready training framework for fire/smoke detection using YOLOv8/YOLOv11 models on the Fire_data_v3_with_hard_examples dataset.
 
-## Setup on New Machine
+---
 
-### 1. Clone Repository
+## Quick Start
 
 ```bash
-# Clone from GitHub
+# 1. Clone repository
 git clone https://github.com/whamidou006/fire-smoke-detection-hackathon.git
-cd fire-smoke-detection-hackathon
-```
+cd fire-smoke-detection-hackathon/fire_smoke_training
 
-### 2. Create Environment
-
-```bash
-# Create conda environment
-conda create -p /path/to/env/firesmoke python=3.11 -y
-conda activate /path/to/env/firesmoke
-
-# Install dependencies from requirements.txt
+# 2. Install dependencies
+conda create -n firesmoke python=3.11 -y
+conda activate firesmoke
 pip install -r requirements.txt
 
-# Or install minimal dependencies manually
-pip install ultralytics torch torchvision matplotlib pandas
+# 3. Configure dataset path in dataset.yaml
+# path: /path/to/Fire_data_v3_with_hard_examples_cleaned
+
+# 4. Start training
+python train.py --model 11l --config balanced
 ```
 
-### 3. Configure Dataset
-
-Edit `dataset.yaml` to point to your dataset location:
-```yaml
-path: /path/to/your/Fire_data_v2_yolo_with_blank_images_and_false_positives
-train: train/images
-val: test/images
-```
-
-### 4. Start Training
-
-```bash
-# Train with default model (YOLOv8n)
-python train.py
-
-# Or specify a different model
-python train.py --model s
-```
-
-YOLO pretrained models will be downloaded automatically on first use.
-
-## Installation
-
-*Note: For complete setup from scratch, see "Setup on New Machine" section above.*
-
-```bash
-# Create conda environment
-conda create -p /path/to/env/firesmoke python=3.11 -y
-conda activate /path/to/env/firesmoke
-
-# Install all dependencies from requirements.txt (recommended)
-pip install -r requirements.txt
-
-# Or install minimal dependencies manually
-pip install ultralytics torch torchvision matplotlib pandas
-```
+---
 
 ## Project Structure
 
 ```
 fire_smoke_training/
-├── train.py           # Training script with model selection
-├── dataset.yaml       # Dataset configuration
-├── analyze.py         # Training analysis and visualization
-├── test.py            # Model evaluation and comparison
-├── requirements.txt   # Project dependencies
-└── README.md          # Documentation
+├── train.py              # Training script with hyperparameter configs
+├── test.py               # Model evaluation and comparison
+├── analyze.py            # Training visualization and analysis
+├── dataset.yaml          # Dataset configuration
+├── merge_hard_examples.py # Dataset preparation script
+└── README.md             # This file
 ```
 
-## Quick Reference
+---
+
+## Usage
+
+### 1. Training
+
+```bash
+# Basic training
+python train.py --model 11l --config balanced
+
+# Multi-GPU training
+python train.py --model 11x --batch 64 --device 0,1,2,3
+
+# Custom configuration
+python train.py --model 11l --batch 128 --config recall_aggressive
+```
+
+**Model Selection:**
+- `11l` - YOLOv11l (recommended, 25.4M params)
+- `11x` - YOLOv11x (best accuracy, 57.0M params)
+- `l` - YOLOv8l (baseline comparison)
+- `pretrain` - Pretrained YOLOv8l
+
+**Hyperparameter Configs:**
+- `balanced` ⭐ - Optimized recall/precision (recommended)
+- `recall_aggressive` - Maximize fire detection
+- `reduce_fp` - Minimize false alarms
+- `baseline` - Standard configuration
+
+### 2. Evaluation
+
+```bash
+# Evaluate model (conf=0.01, iou=0.2)
+python test.py --model runs/yolo11l_balanced/weights/best.pt
+
+# Compare with baselines
+python test.py --model runs/yolo11l_balanced/weights/best.pt --compare
+
+# Test-Time Augmentation
+python test.py --model best.pt --multi-scale
+```
+
+### 3. Analysis
+
+```bash
+# Visualize training progress
+python analyze.py --results runs/yolo11l_balanced/results.csv
+
+# Test and analyze
+python analyze.py --test runs/yolo11l_balanced/weights/best.pt --compare
+```
+
+---
+
+## Dataset Configuration
+
+**Dataset:** Fire_data_v3_with_hard_examples_cleaned
+
+```yaml
+# dataset.yaml
+path: /path/to/Fire_data_v3_with_hard_examples_cleaned
+train: train/images  # 18,946 images
+val: test/images     # 1,017 images
+
+names:
+  0: smoke  # 94% of annotations
+  1: fire   # 6% of annotations
+```
+
+### Training Configuration
+
+**Default Settings (balanced config):**
+- Epochs: 150 (patience=0, no early stopping)
+- Optimizer: AdamW (lr=1e-5)
+- Loss weights: cls=0.27, box=7.8, dfl=1.6
+- Augmentation: Conservative (no rotation/vertical flip)
+- Checkpoints: Saved every 2 epochs
+
+**Available Configs:** `baseline`, `balanced`, `recall_aggressive`, `recall_moderate`, `reduce_fp`, `high_lr`
+
+---
+
+## Outputs
 
 ### Training
-```bash
-python train.py                    # YOLOv8n (default)
-python train.py --model s          # YOLOv8s
-python train.py --model l          # YOLOv8l
-python train.py --model pretrain   # Continue from pretrained model
-python train.py -m l -b 32         # Custom batch size
 ```
-
-### Testing
-```bash
-python test.py --model path/to/best.pt                    # Evaluate single model
-python test.py --model path/to/best.pt --compare          # Compare with baselines
-python test.py --model path/to/best.pt --multi-scale      # Test-Time Augmentation
-```
-
-### Tiling Inference (High-Resolution Images)
-```bash
-# For high-resolution images, use the standalone tiling script
-python tiling_inference.py --model best.pt --image image.jpg --output results/
+runs/yolo11l_balanced/
+├── weights/
+│   ├── best.pt          # Best checkpoint
+│   ├── last.pt          # Latest checkpoint
+│   └── best.onnx        # ONNX export (if exported)
+├── results.csv          # Epoch metrics
+└── results.png          # Training curves
 ```
 
 ### Analysis
-```bash
-python analyze.py                                # Auto-detect results and visualize
-python analyze.py --test path/to/best.pt --compare
-```
-
-## Getting Started
-
-### Training a Model
-
-```bash
-# Train with YOLOv8n (default)
-python train.py
-
-# Train with YOLOv8s
-python train.py --model s
-
-# Train with YOLOv8l
-python train.py --model l
-
-# Continue from pretrained model
-python train.py --model pretrain
-
-# Specify custom batch size
-python train.py --model l --batch 32
-
-# Use custom model weights
-python train.py --model /path/to/custom.pt --batch 64
-```
-
-### Analyzing Training Progress
-
-```bash
-# Specify results.csv file explicitly (recommended)
-python analyze.py --results runs/yolov8n_fire_smoke/results.csv
-
-# Exclude baseline comparison for faster analysis
-python analyze.py --results runs/yolov8n_fire_smoke/results.csv --no-baselines
-
-# Auto-detect results.csv file (searches common locations)
-python analyze.py
-
-# Available arguments:
-#   --results PATH       Path to results.csv file from training
-#   --output PATH        Output path for visualization (default: training_analysis.png)
-#   --no-baselines       Skip baseline model evaluation
-#   --dataset PATH       Dataset YAML file (default: dataset.yaml)
-#   --test PATH          Test a model instead of analyzing training
-#   --compare            Compare model with baselines when testing
-```
-
-**Input File:** The `results.csv` file is automatically created by `train.py` in the training output directory:
-- **Location:** `runs/{model_name}_fire_smoke/results.csv`
-- **Format:** CSV with epoch-by-epoch metrics (mAP, precision, recall, losses)
-- **Created by:** YOLO during training
-
-### Evaluating Models
-
-```bash
-# Test single model
-python test.py --model ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt
-
-# Compare with baseline models
-python test.py --model ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt --compare
-
-# Integrated testing and analysis
-python analyze.py --test ../runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt --compare
-```
-
-## Model Options
-
-### Available Models
-
-| Model | Size | Parameters | Batch Size | Use Case |
-|-------|------|------------|------------|----------|
-| yolov8n | 6 MB | 3.2M | 128 | Fast training, mobile deployment |
-| yolov8s | 22 MB | 11.2M | 96 | Better accuracy, balanced speed |
-| yolov8m | 52 MB | 25.9M | 56 | Balanced performance |
-| yolov8l | 87 MB | 43.7M | 40 | High accuracy, baseline comparison |
-| yolov8x | 136 MB | 68.2M | 24 | Maximum accuracy |
-| pretrain_yolov8.pt | 84 MB | 43.6M | 40 | Hackathon baseline (YOLOv8l) |
-
-### Baseline Performance
-
-Test set: 382 images
-
-- **current_best.pt**: mAP@0.5 = 0.4149, Precision = 0.6461, Recall = 0.3598
-- **pretrain_yolov8.pt**: mAP@0.5 = 0.1944, Precision = 0.3575, Recall = 0.1650
-- **Target**: mAP@0.5 ≥ 0.60, Precision ≥ 0.60, Recall ≥ 0.70
-
-## Configuration
-
-### Dataset (dataset.yaml)
-
-```yaml
-path: /path/to/Fire_data_v2_yolo_with_blank_images_and_false_positives
-train: train/images  # 15,323 images (7,269 positive, 8,054 negative samples)
-val: test/images     # 382 images
-
-names:
-  0: smoke  # 94% of instances
-  1: fire   # 6% of instances
-```
-
-### Training Hyperparameters
-
-Key settings optimized for AlertCalifornia dataset:
-
-- **Epochs**: 150 with early stopping (patience=50)
-- **Optimizer**: AdamW (learning rate=0.001)
-- **Loss weights**: Classification=0.3, Box=7.5, DFL=1.5
-- **Augmentation**: Conservative settings for smoke/fire detection
-- **Batch size**: Model-dependent (see table above)
-
-## Analysis and Visualization
-
-## Analysis and Visualization
-
-The analysis script generates a comprehensive 6-panel visualization:
-
-1. **mAP@0.5 Progress** - Training curve with baseline comparison
-2. **Precision & Recall** - Metrics with temporal smoothing
-3. **Loss Curves** - Box, classification, and DFL losses
-4. **Model Comparison** - Performance bar chart
-5. **Metrics Table** - Detailed numerical comparison
-6. **Training Summary** - Progress statistics and ETA
-
-## Model Evaluation
-
-The testing script provides:
-
-## Model Evaluation
-
-The testing script provides:
-
-- Single model evaluation on test set
-- Multi-model comparison with baselines
-- Detailed per-class metrics
-- JSON output for analysis
-- Optional COCO format results
-
-Example output:
-
-```
-Model                      Size   Params  mAP@0.5  Prec    Recall
-─────────────────────────────────────────────────────────────────
-current_best.pt            83.6M   43.6M   0.4149  0.6461  0.3598
-pretrain_yolov8.pt         83.6M   43.6M   0.1944  0.3575  0.1650
-trained_model.pt            6.2M    3.2M   0.XXXX  0.XXXX  0.XXXX
-```
-
-## Output Structure
-
-## Output Structure
-
-### Training Outputs
-
-- `runs/train_alertcal/yolov8n_optimized_v1/`
-  - `weights/best.pt` - Best model checkpoint
-  - `weights/last.pt` - Latest checkpoint
-  - `results.csv` - Training metrics per epoch
-  - `results.png` - Training visualization
-
-### Analysis Outputs
-
-- `training_analysis.png` - Comprehensive 6-panel visualization
-- `test_results_*.json` - Detailed evaluation metrics
-
-## Training Strategy
-
-## Training Strategy
-
-### Current Approach
-
-Training with YOLOv8n:
-- Fast iteration and prototyping
-- Low resource requirements
-- Baseline performance assessment
-
-### Model Selection Guidelines
-
-If YOLOv8n performance is insufficient:
-
-1. **YOLOv8s** (22MB, 11.2M params)
-   - Moderate accuracy improvement
-   - Reasonable training time
-   - Good speed/accuracy balance
-
-2. **YOLOv8l** (87MB, 43.7M params)
-   - Matches baseline architecture
-   - Direct comparison capability
-   - Higher accuracy potential
-
-3. **pretrain_yolov8.pt**
-   - Leverages existing training
-   - Proven architecture for dataset
-   - Transfer learning benefits
-
-## Dataset Information
-
-## Dataset Information
-
-### Composition
-
-- **Training**: 15,325 images
-  - Positive samples: 7,270 (47.4%) with fire/smoke annotations
-  - Negative samples: 8,054 (52.6%) without fire/smoke (background)
-  - Ratio: 1:1.11 (nearly balanced)
-- **Validation/Test**: 382 images
-  - Positive samples: 292 (76.4%) with fire/smoke annotations
-  - Negative samples: 90 (23.6%) without fire/smoke
-  - Ratio: 3.2:1 (more positives)
-- **Classes**: 
-  - Smoke: ~94% of fire/smoke instances
-  - Fire: ~6% of fire/smoke instances
-  - Class imbalance: 1:15.67 (addressed by class_weights)
-
-### Train/Val Distribution Analysis
-
-**Key Insight**: Training set has MORE negatives (52.6%) than validation (23.6%)
-
-**Why This Is Correct:**
-- ✅ **Training (52.6% neg)**: Simulates real-world deployment where most frames show no fire
-- ✅ **Validation (76.4% pos)**: Tests detection capability when fire/smoke is present
-- ✅ **Result**: Model learns to reject false positives while maintaining detection accuracy
-
-**Important Considerations:**
-- ⚠️  Validation mAP may be 5-10% HIGHER than real-world performance
-- 🎯 **Focus on RECALL** (catching fires) not just mAP
-- 🎯 **Monitor false positive rate** during validation
-- ✅ This split is INTENTIONAL for safety-critical fire detection
-
-### Design Rationale
-
-The dataset includes negative samples (empty annotations) intentionally to:
-- Reduce false positive detections
-- Improve model generalization
-- Enhance performance at lower zoom levels
-
-### Performance Context
-
-- YOLOv8n (3.2M parameters) vs Baseline (43.6M parameters)
-- 13x parameter difference affects capacity
-- Current gap: 0.2958 vs 0.4149 mAP@0.5
-
-## Troubleshooting
-
-## Troubleshooting
-
-### Common Issues
-
-**Results file not found**
-```bash
-python analyze.py --results path/to/results.csv
-```
-
-**Out of memory**
-```bash
-# Reduce batch size in train.py or use --batch argument
-python train.py --model n --batch 64
-```
-
-**Baseline evaluation slow**
-```bash
-python analyze.py --no-baselines
-```
-
-**NumPy compatibility error**
-```bash
-# Use the correct conda environment
-/home/whamidouche/ssdprivate/conda-env/cevg-rtnet/bin/python train.py
-```
-
-## Technical Notes
-
-## Technical Notes
-
-### Training Time Estimates
-
-On NVIDIA A100 80GB GPU:
-
-- YOLOv8n: 12-15 hours (150 epochs)
-- YOLOv8s: 18-24 hours (150 epochs)
-- YOLOv8l: 30-40 hours (150 epochs)
-
-### Recommended Workflow
-
-1. Train YOLOv8n for baseline performance
-2. Analyze results and dataset characteristics
-3. Select larger model if needed
-4. Apply insights from initial training
-5. Compare final results with baselines
-
-## Advanced Usage
-
-## Advanced Usage
-
-### Tiling Inference for High-Resolution Images
-
-For high-resolution images (>1920x1080), we provide two tiling options:
-
-#### Option 1: SAHI (Optional - Advanced Users) ⭐
-
-[SAHI](https://github.com/obss/sahi) is a production-grade library with optimized merge strategies (NMS, WBF, NMW).
-
-**⚠️ Optional Installation (may cause dependency conflicts):**
-```bash
-# Install in a separate environment if needed
-pip install sahi
-```
-
-**When to use SAHI:**
-- ✅ 4K+ resolution images (3840×2160 and above)
-- ✅ Production deployments requiring advanced merge
-- ✅ Aerial/satellite imagery
-- ✅ When you need WBF/NMW postprocessing
-
-**Usage:**
-```bash
-# Process 4K image with optimal settings
-python sahi_inference.py \
-  --model runs/yolov8s_fire_smoke/weights/best.pt \
-  --image 4k_image.jpg \
-  --slice-size 1920 \
-  --overlap 0.3 \
-  --postprocess NMW \
-  --conf 0.15 \
-  --iou 0.4
-
-# Directory with ground truth evaluation
-python sahi_inference.py \
-  --model best.pt \
-  --image test/images/ \
-  --labels test/labels/ \
-  --output sahi_results/
-
-# Different postprocessing methods
-python sahi_inference.py --model best.pt --image image.jpg --postprocess NMS    # Standard
-python sahi_inference.py --model best.pt --image image.jpg --postprocess WBF    # Weighted fusion
-python sahi_inference.py --model best.pt --image image.jpg --postprocess NMW    # Weighted merge
-```
-
-**SAHI Parameters:**
-- `--slice-size`: Size of each slice (default: 640, recommend 1280-1920 for 4K)
-- `--overlap`: Overlap ratio 0.0-0.5 (default: 0.3)
-- `--postprocess`: Merge method - NMS/WBF/NMW (default: NMS)
-- `--conf`: Confidence threshold (default: 0.15)
-- `--iou`: IoU threshold (default: 0.4)
-- `--labels`: Ground truth directory for metrics
-
-**SAHI Advantages:**
-- ⭐ Multiple merge strategies (NMS, WBF, NMW)
-- ⭐ Better edge detection
-- ⭐ Production-tested and optimized
-- ⭐ Active maintenance and support
+- `training_analysis.png` - 6-panel visualization
+- `test_results_*.json` - Detailed metrics
 
 ---
 
-#### Option 2: Custom Tiling (Recommended - No Extra Dependencies)
+## Dataset Details
 
-Use the built-in `tiling_inference.py` for sliding window inference without additional dependencies.
+### Fire_data_v3_with_hard_examples
 
-**✅ Advantages:**
-- No additional package installation required
-- Works with your existing environment
-- Suitable for most high-resolution scenarios
+**Total:** 19,963 images (18,946 train + 1,017 test)
 
-**When to use custom tiling:**
-- High-resolution images (>1920x1080)
-- Small fire/smoke at distance
-- Cannot install SAHI dependencies
+| Split | Images | Positive | Negative | Annotations |
+|-------|--------|----------|----------|-------------|
+| Train | 18,946 | 7,911 (41.8%) | 11,035 (58.2%) | 7,911 |
+| Test  | 1,017  | 555 (54.6%) | 462 (45.4%) | 555 |
 
-**Basic usage:**
-```bash
-# Process single image
-python tiling_inference.py \
-  --model runs/yolov8s_fire_smoke/weights/best.pt \
-  --image /path/to/high_res_image.jpg \
-  --output tiling_results/
+**Class Distribution:**
+- Smoke: 94% of annotations (7,939 total)
+- Fire: 6% of annotations (527 total)
 
-# Process entire directory
-python tiling_inference.py \
-  --model runs/yolov8s_fire_smoke/weights/best.pt \
-  --image /path/to/images/ \
-  --output tiling_results/
+**Hard Examples Integrated:**
+- False Negatives: 2,192 images (missed fires, now annotated)
+- False Positives: 4,256 images (false alarms as hard negatives)
 
-# Custom tile size and overlap
-python tiling_inference.py \
-  --model best.pt \
-  --image image.jpg \
-  --tile-size 1280 \
-  --overlap 0.3 \
-  --output results/
-```
-
-**Parameters:**
-- `--tile-size`: Size of each tile in pixels (default: 640)
-- `--overlap`: Overlap between tiles 0.0-0.5 (default: 0.2 = 20%)
-- `--conf`: Confidence threshold (default: 0.25)
-- `--iou`: IoU threshold for NMS (default: 0.45)
-- `--device`: Device to use (default: cuda:0)
-- `--no-visualize`: Skip saving visualization images
-
-**Output:**
-- JSON files with all detections
-- Visualization images with tile grid overlay
-- Summary statistics
+**Design Rationale:**
+- More negatives in training (58.2%) simulate real-world deployment
+- Hard example mining addresses specific failure modes
 
 ---
 
-#### Resolution Guidelines
-
-| Image Resolution | Recommended Method | Notes |
-|------------------|-------------------|-------|
-| **≤1920×1080** | `test.py` (standard) | Optimal performance |
-| **2560×1440** | `tiling_inference.py` | Consider for small objects |
-| **4K (3840×2160)** | `tiling_inference.py` or SAHI | Tiling beneficial |
-| **8K+** | SAHI (optional) | Advanced merge needed |
-
-**General Recommendation:**
-- **Standard resolution**: Use `test.py` for best results
-- **High resolution (4K+)**: Use `tiling_inference.py` (no extra dependencies)
-- **Production/Advanced**: Optionally use SAHI in separate environment
-
-**Trade-offs:**
-- ✅ Better small object detection (+5-15% on high-res images)
-- ✅ Can process very large images
-- ✅ Complete per-image analysis with visualizations
-- ❌ Slower inference (3-5x depending on image size and overlap)
-
-### Test-Time Augmentation (Recommended)
-
-### Custom Configuration
-
-Edit training parameters in `train.py`:
-
-- Model selection and batch size
-- Training hyperparameters
-- Data augmentation settings
-- Loss weights
-
-### Monitoring Training
-
-```bash
-# View training in real-time
-screen -r train
-
-# Update visualization periodically
-watch -n 300 python analyze.py
-
-# Monitor GPU usage
-nvtop
-```
-
-### Model Export
-
-Export trained model to ONNX format:
-
-```python
-from ultralytics import YOLO
-model = YOLO('runs/train_alertcal/yolov8n_optimized_v1/weights/best.pt')
-model.export(format='onnx', dynamic=False, simplify=True)
-```
-
 ## References
 
-## References
-
-- [YOLOv8 Documentation](https://docs.ultralytics.com/)
+- [Ultralytics Documentation](https://docs.ultralytics.com/)
 - [AlertCalifornia Project](https://www.alertcalifornia.org/)
-- Dataset: Fire_data_v2_yolo_with_blank_images_and_false_positives
-
-## Support
-
-For assistance:
-1. Review this documentation
-2. Check training logs and outputs
-3. Use `--help` flag with scripts
+- Dataset: Fire_data_v3_with_hard_examples
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** December 15, 2025
+**Version:** 2.0  
+**Last Updated:** December 19, 2025  
+**Evaluation:** conf=0.01, iou=0.2 (standard thresholds)

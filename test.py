@@ -3,6 +3,10 @@ Fire/Smoke Detection Model Testing and Evaluation
 Tests trained models and compares against baselines
 
 Note: For tiling inference on high-resolution images, use tiling_inference.py
+
+Default Thresholds:
+- conf=0.01, iou=0.2: Standard thresholds optimized for maximum recall (catch all fires)
+- Use --conf and --iou flags to test different thresholds
 """
 from ultralytics import YOLO
 import argparse
@@ -10,7 +14,7 @@ import os
 from pathlib import Path
 
 
-def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=False, multi_scale=False):
+def test_model(model_path, data_yaml, batch=8, imgsz=640, conf=0.01, iou=0.2, save_json=False, multi_scale=False):
     """
     Test a single model and return detailed metrics
     
@@ -18,6 +22,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
         model_path: Path to model weights (.pt file)
         data_yaml: Path to dataset YAML configuration
         batch: Batch size for testing
+        imgsz: Image size for testing
         conf: Confidence threshold
         iou: IoU threshold for NMS
         save_json: Whether to save results in COCO JSON format
@@ -47,6 +52,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     print(f"\n🔄 Running validation...")
     print(f"  Dataset:     {data_yaml}")
     print(f"  Batch size:  {batch}")
+    print(f"  Image size:  {imgsz}")
     print(f"  Confidence:  {conf}")
     print(f"  IoU:         {iou}")
     if multi_scale:
@@ -55,7 +61,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     results = model.val(
         data=data_yaml,
         batch=batch,
-        imgsz=1024,
+        imgsz=imgsz,
         conf=conf,
         iou=iou,
         workers=0,
@@ -104,7 +110,7 @@ def test_model(model_path, data_yaml, batch=8, conf=0.01, iou=0.2, save_json=Fal
     return metrics
 
 
-def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_scale=False):
+def compare_models(models_dict, data_yaml, batch=8, imgsz=640, conf=0.01, iou=0.2, multi_scale=False):
     """
     Compare multiple models side-by-side
     
@@ -112,6 +118,7 @@ def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_sc
         models_dict: Dictionary of {name: model_path}
         data_yaml: Path to dataset YAML
         batch: Batch size
+        imgsz: Image size for testing
         conf: Confidence threshold
         iou: IoU threshold
     
@@ -130,7 +137,7 @@ def compare_models(models_dict, data_yaml, batch=8, conf=0.01, iou=0.2, multi_sc
             continue
         
         try:
-            results = test_model(model_path, data_yaml, batch, conf, iou, 
+            results = test_model(model_path, data_yaml, batch, imgsz, conf, iou, 
                                save_json=False, multi_scale=multi_scale)
             all_results[name] = results
         except Exception as e:
@@ -173,6 +180,8 @@ def main():
                         help='Path to dataset YAML (default: dataset.yaml)')
     parser.add_argument('--batch', type=int, default=8,
                         help='Batch size (default: 8)')
+    parser.add_argument('--imgsz', '-i', type=int, default=640,
+                        help='Image size for testing (default: 640)')
     parser.add_argument('--conf', type=float, default=0.01,
                         help='Confidence threshold (default: 0.01, optimized for recall)')
     parser.add_argument('--iou', type=float, default=0.2,
@@ -228,7 +237,7 @@ def main():
         
         # Run comparison
         results = compare_models(models_to_compare, args.data, args.batch, 
-                               args.conf, args.iou, args.multi_scale)
+                               args.imgsz, args.conf, args.iou, args.multi_scale)
         
         # Save results
         import json
@@ -251,8 +260,8 @@ def main():
             return
         
         # Test single model
-        results = test_model(args.model, args.data, args.batch, args.conf, args.iou, 
-                            args.save_json, args.multi_scale)
+        results = test_model(args.model, args.data, args.batch, args.imgsz, 
+                            args.conf, args.iou, args.save_json, args.multi_scale)
         
         # Save results
         import json

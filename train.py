@@ -43,6 +43,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.5,
         'dfl': 1.5,
         'lr0': 0.001,
+        'lrf': 1e-6,
         'mixup': 0.0,
         'copy_paste': 0.0,
         'iou': 0.5,       # IoU threshold for NMS
@@ -55,6 +56,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 8.0,       # ↑ Better localization → fewer false boxes
         'dfl': 1.6,       # ↑ Better box quality
         'lr0': 0.001,
+        'lrf': 1e-6,
         'mixup': 0.1,     # Add mixup for hard negatives
         'copy_paste': 0.0,
         'iou': 0.45,      # ↓ Lower IoU (keep more detections)
@@ -67,6 +69,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 8.5,       # ↑↑ Stricter box quality
         'dfl': 1.8,       # ↑ Higher DFL
         'lr0': 0.0015,    # Slightly higher LR
+        'lrf': 1e-6,
         'mixup': 0.15,    # More mixup
         'copy_paste': 0.1,
         'iou': 0.4,       # ↓↓ Much lower IoU
@@ -79,6 +82,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.0,       # Standard box weight
         'dfl': 1.5,
         'lr0': 0.001,
+        'lrf': 1e-6,
         'mixup': 0.2,     # More mixup for FP reduction
         'copy_paste': 0.0,
         'iou': 0.55,      # ↑ Higher IoU (stricter NMS)
@@ -91,11 +95,12 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.8,       # Slightly higher than baseline
         'dfl': 1.6,
         'lr0': 1.0e-05,    # Slightly higher LR
+        'lrf': 1e-6,
         'mixup': 0.1,
         'copy_paste': 0.05,
         'iou': 0.2,      # Slightly lower IoU
         'conf': 0.01,
-        'scale': 0.0,     # Disable multi-scale augmentation
+        'scale': 0.2,     # Enable multi-scale augmentation
     },
     
     'high_lr': {
@@ -104,6 +109,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 8.0,
         'dfl': 1.6,
         'lr0': 0.002,     # ↑↑ Double LR
+        'lrf': 1e-6,
         'mixup': 0.1,
         'copy_paste': 0.0,
         'iou': 0.45,
@@ -116,6 +122,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.5,
         'dfl': 1.5,
         'lr0': 0.001,
+        'lrf': 1e-6,
         'mixup': 0.0,
         'copy_paste': 0.0,
         'iou': 0.5,
@@ -236,40 +243,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python train.py                    # Train with YOLOv8n (default)
-  python train.py --model s          # Train with YOLOv8s
-  python train.py --model l          # Train with YOLOv8l
-  python train.py --model 11s        # Train with YOLOv11s
-  python train.py --model pretrain   # Continue from pretrain_yolov8.pt
-  python train.py --model n --batch 64  # Custom batch size
-  python train.py --model /path/to/custom.pt --batch 32  # Custom model
-  
-  # Hyperparameter configurations:
-  python train.py --model s --config baseline            # Default config
-  python train.py --model s --config recall_moderate     # Boost recall moderately
-  python train.py --model s --config recall_aggressive   # Aggressive recall (catch more fires)
-  python train.py --model s --config reduce_fp           # Reduce false positives
-  python train.py --model s --config balanced            # Balanced approach (recommended)
-  python train.py --model s --config high_lr             # Higher learning rate
-  python train.py --model s --config conservative_aug    # Very conservative augmentation
-  python train.py --model pretrain --config balanced --batch 128  # Full optimization
+  python train.py --model 11l --config balanced              # Recommended
+  python train.py --model 11x --batch 64 --device 0,1       # Multi-GPU
+  python train.py --model 11l --config recall_aggressive    # Custom config
 
-Available YOLOv8 models:
-  n        YOLOv8n (6MB, 3.2M params, batch=128)
-  s        YOLOv8s (22MB, 11.2M params, batch=128)
-  m        YOLOv8m (52MB, 25.9M params, batch=128)
-  l        YOLOv8l (87MB, 43.7M params, batch=128)
-  x        YOLOv8x (136MB, 68.2M params, batch=96)
+Models: n, s, m, l, x (YOLOv8) | 11n, 11s, 11m, 11l, 11x (YOLOv11) | pretrain
+Configs: baseline, balanced, recall_aggressive, recall_moderate, reduce_fp, high_lr
 
-Available YOLOv11 models (latest):
-  11n      YOLOv11n (5MB, 2.6M params, batch=128)
-  11s      YOLOv11s (20MB, 9.4M params, batch=128)
-  11m      YOLOv11m (48MB, 20.1M params, batch=128)
-  11l      YOLOv11l (83MB, 25.3M params, batch=128)
-  11x      YOLOv11x (131MB, 56.9M params, batch=96)
-
-Other:
-  pretrain Hackathon pretrained YOLOv8l (batch=128)
+Use --help for full options
         """
     )
     parser.add_argument(
@@ -283,6 +264,12 @@ Other:
         type=int,
         default=None,
         help='Batch size (default: auto-selected based on model)'
+    )
+    parser.add_argument(
+        '--imgsz', '-i',
+        type=int,
+        default=640,
+        help='Image size for training (default: 640)'
     )
     parser.add_argument(
         '--config', '-c',
@@ -411,7 +398,7 @@ Other:
         'patience': 0,  # Disable early stopping (0 = train all epochs)
         
         # Image and batch
-        'imgsz': 1024,
+        'imgsz': args.imgsz,
         'batch': BATCH_SIZE,
         'device': args.device,  # Support single or multi-GPU
         'workers': 0,  # Avoid shared memory issues
@@ -428,7 +415,7 @@ Other:
         # Optimizer (AdamW with improved learning rate)
         'optimizer': 'AdamW',
         'lr0': hp_config['lr0'],        # From hyperparameter config
-        'lrf': 1e-6,         # Final LR factor (more gradual decay for better convergence)
+        'lrf': hp_config['lrf'],        # From hyperparameter config
         'weight_decay': 0.0005,  # Regularization (balanced)
         'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,
@@ -473,7 +460,7 @@ Other:
     }
     
     print(f"\n⚙️  Training Configuration:")
-    print(f"  • Dataset: AlertCalifornia Fire/Smoke (15,323 train, 382 val)")
+    print(f"  • Dataset: Fire_data_v3_with_hard_examples (18,946 train, 1,017 test)")
     print(f"  • Epochs: {config['epochs']} (patience: {config['patience']})")
     print(f"  • Optimizer: {config['optimizer']} (lr={config['lr0']})")
     print(f"  • Config: {args.config} - {hp_config['description']}")

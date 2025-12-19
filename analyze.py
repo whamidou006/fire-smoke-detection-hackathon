@@ -4,6 +4,10 @@ Training Analysis & Visualization
 Generates comprehensive plots comparing training progress with baselines
 Can also run model testing by calling test.py
 Supports watch mode for continuous updates during training
+
+Baseline Evaluation Thresholds:
+- Default: conf=0.01, iou=0.2 (optimized for maximum recall)
+- Use --conf and --iou flags for custom thresholds
 """
 import pandas as pd
 import matplotlib
@@ -19,13 +23,14 @@ from datetime import datetime
 from ultralytics import YOLO
 
 
-def load_baseline_metrics(dataset_yaml, conf_threshold=0.15, iou_threshold=0.4):
+def load_baseline_metrics(dataset_yaml, conf_threshold=0.01, iou_threshold=0.2, imgsz=640):
     """Load and evaluate baseline models
     
     Args:
         dataset_yaml: Path to dataset YAML file
-        conf_threshold: Confidence threshold (default: 0.15)
-        iou_threshold: IoU threshold (default: 0.4)
+        conf_threshold: Confidence threshold (default: 0.01)
+        iou_threshold: IoU threshold (default: 0.2)
+        imgsz: Image size for validation (default: 640)
     """
     baselines = {}
     
@@ -48,7 +53,7 @@ def load_baseline_metrics(dataset_yaml, conf_threshold=0.15, iou_threshold=0.4):
             results = model.val(
                 data=dataset_yaml,
                 batch=8,
-                imgsz=640,
+                imgsz=imgsz,
                 verbose=False,
                 conf=conf_threshold,  # Use provided threshold
                 iou=iou_threshold,    # Use provided threshold
@@ -339,37 +344,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Analyze training results
-  python analyze.py --results runs/train/results.csv
-  
-  # Skip baseline comparison (faster)
-  python analyze.py --results runs/train/results.csv --no-baselines
-  
-  # Custom confidence and IoU thresholds
-  python analyze.py --results runs/train/results.csv --conf 0.25 --iou 0.5
-  
-  # Watch mode - continuous updates during training
-  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch
-  
-  # Watch mode with custom interval and thresholds
-  python analyze.py --results runs/yolov8s_fire_smoke/results.csv --watch --interval 60 --conf 0.15 --iou 0.4
-  
-  # Run model testing
-  python analyze.py --test runs/train/weights/best.pt
-  
-  # Compare multiple models
-  python analyze.py --test runs/train/weights/best.pt --compare
-  
-  # Test with multi-scale validation (Test-Time Augmentation)
-  python analyze.py --test runs/train/weights/best.pt --compare --multi-scale
+  python analyze.py --results runs/yolo11l_balanced/results.csv           # Analyze training
+  python analyze.py --results runs/train/results.csv --watch              # Watch mode
+  python analyze.py --test runs/train/weights/best.pt --compare           # Test model
+
+Use --help for full options
         """
     )
     parser.add_argument('--results', type=str, help='Path to results.csv file')
     parser.add_argument('--output', type=str, default='training_analysis.png', help='Output plot filename')
     parser.add_argument('--dataset', type=str, default='dataset.yaml', help='Dataset YAML for baseline evaluation')
     parser.add_argument('--no-baselines', action='store_true', help='Skip baseline evaluation')
-    parser.add_argument('--conf', type=float, default=0.01, help='Confidence threshold for baseline evaluation (default: 0.15)')
-    parser.add_argument('--iou', type=float, default=0.2, help='IoU threshold for baseline evaluation (default: 0.4)')
+    parser.add_argument('--conf', type=float, default=0.01, help='Confidence threshold for baseline evaluation (default: 0.01)')
+    parser.add_argument('--iou', type=float, default=0.2, help='IoU threshold for baseline evaluation (default: 0.2)')
+    parser.add_argument('--imgsz', '-i', type=int, default=640, help='Image size for validation (default: 640)')
     parser.add_argument('--test', type=str, metavar='MODEL', help='Run model testing (calls test.py)')
     parser.add_argument('--compare', action='store_true', help='Compare with baselines when testing')
     parser.add_argument('--multi-scale', action='store_true', help='Enable multi-scale validation when testing')
@@ -459,7 +447,7 @@ Examples:
         if not args.no_baselines:
             print("📊 Loading baseline models (one-time evaluation)...")
             try:
-                baselines = load_baseline_metrics(args.dataset, args.conf, args.iou)
+                baselines = load_baseline_metrics(args.dataset, args.conf, args.iou, args.imgsz)
                 baselines_loaded = True
                 print("✓ Baselines loaded successfully\n")
             except Exception as e:
@@ -511,7 +499,7 @@ Examples:
     baselines = {}
     if not args.no_baselines:
         try:
-            baselines = load_baseline_metrics(args.dataset, args.conf, args.iou)
+            baselines = load_baseline_metrics(args.dataset, args.conf, args.iou, args.imgsz)
         except Exception as e:
             print(f"⚠️  Baseline evaluation failed: {e}")
             print("   Continuing without baselines...")
