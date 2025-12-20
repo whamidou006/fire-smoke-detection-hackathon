@@ -95,7 +95,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.8,       # Slightly higher than baseline
         'dfl': 1.6,
         'lr0': 1.0e-05,    # Slightly higher LR
-        'lrf': 1e-6,
+        'lrf': 1e-4,
         'mixup': 0.1,
         'copy_paste': 0.05,
         'iou': 0.2,      # Slightly lower IoU
@@ -378,7 +378,7 @@ Use --help for full options
         'hsv_h': 0.01,       # Minimal hue shift (preserve fire colors)
         'hsv_s': 0.4,        # Moderate saturation (smoke density variations)
         'hsv_v': 0.3,        # Moderate brightness (day/night)
-        'scale': hp_config.get('scale', 0.2),  # Use scale from config if available
+        'scale': 0.2,       # Use scale from config if available
     }
     
     # Override augmentation if conservative_aug config is selected
@@ -387,6 +387,7 @@ Use --help for full options
             'hsv_h': hp_config.get('hsv_h', 0.01),
             'hsv_s': hp_config.get('hsv_s', 0.4),
             'hsv_v': hp_config.get('hsv_v', 0.3),
+            'scale': hp_config.get('scale', 0.2),
         })
     
     config = {
