@@ -25,6 +25,36 @@ python train.py --model 11l --config balanced
 
 ---
 
+## Reproducing Results
+
+### Balanced Configuration (640px, Recommended)
+```bash
+# Single GPU training
+python train.py --model 11l --config balanced --batch 128 --imgsz 640
+
+# Multi-GPU training (2x GPUs)
+CUDA_VISIBLE_DEVICES=0,1 python train.py --model 11l --config balanced --batch 128 --device 0,1 --imgsz 640
+
+# Evaluation
+python test.py --model runs/yolo11l_balanced/weights/best.pt --imgsz 640
+```
+
+### High-Resolution Training (1024px)
+```bash
+# Single GPU training (requires more memory)
+python train.py --model 11l --config balanced --batch 64 --imgsz 1024
+
+# Multi-GPU training (2x GPUs, recommended)
+CUDA_VISIBLE_DEVICES=0,1 python train.py --model 11l --config balanced --batch 64 --device 0,1 --imgsz 1024
+
+# Evaluation
+python test.py --model runs/yolo11l_balanced/weights/best.pt --imgsz 1024
+```
+
+**Note:** Higher resolution (1024px) captures more detail but requires more GPU memory. Reduce batch size accordingly.
+
+---
+
 ## Project Structure
 
 ```
@@ -47,8 +77,8 @@ fire_smoke_training/
 # Basic training
 python train.py --model 11l --config balanced
 
-# Multi-GPU training
-python train.py --model 11x --batch 64 --device 0,1,2,3
+# Multi-GPU training (2x GPUs)
+python train.py --model 11x --batch 64 --device 0,1
 
 # Custom configuration
 python train.py --model 11l --batch 128 --config recall_aggressive
@@ -144,22 +174,28 @@ runs/yolo11l_balanced/
 
 **Total:** 19,963 images (18,946 train + 1,017 test)
 
-| Split | Images | Positive | Negative | Annotations |
-|-------|--------|----------|----------|-------------|
-| Train | 18,946 | 7,911 (41.8%) | 11,035 (58.2%) | 7,911 |
-| Test  | 1,017  | 555 (54.6%) | 462 (45.4%) | 555 |
+**Composition by Source:**
+
+| Split | Source Dataset | Images | Smoke Annot. | Fire Annot. | Empty/Neg. | Cumulative |
+|-------|---------------|--------|--------------|-------------|------------|------------|
+| Train | Original v2 | 13,133 | 5,161 | 481 | 8,054 | 13,133 |
+| | FN (missed fires) | 1,963 | 2,750 | 11 | 0 | 15,096 |
+| | FP (hard negatives) | 3,850 | 0 | 0 | 3,850 | **18,946** |
+| Test | Original v2 | 382 | 292 | 35 | 90 | 382 |
+| | FN (missed fires) | 229 | 263 | 0 | 0 | 611 |
+| | FP (hard negatives) | 406 | 0 | 0 | 406 | **1,017** |
 
 **Class Distribution:**
-- Smoke: 94% of annotations (7,939 total)
-- Fire: 6% of annotations (527 total)
+- Smoke: 8,466 annotations (94.3%)
+- Fire: 527 annotations (5.7%)
 
 **Hard Examples Integrated:**
-- False Negatives: 2,192 images (missed fires, now annotated)
-- False Positives: 4,256 images (false alarms as hard negatives)
+- False Negatives: 2,192 images (1,963 train + 229 test) - Missed detections now annotated
+- False Positives: 4,256 images (3,850 train + 406 test) - False alarms as hard negatives
 
 **Design Rationale:**
-- More negatives in training (58.2%) simulate real-world deployment
-- Hard example mining addresses specific failure modes
+- More negatives in training (62.0% negative) simulate real-world deployment
+- Hard example mining addresses specific failure modes from previous model iterations
 
 ---
 
@@ -172,5 +208,5 @@ runs/yolo11l_balanced/
 ---
 
 **Version:** 2.0  
-**Last Updated:** December 19, 2025  
+**Last Updated:** December 20, 2025  
 **Evaluation:** conf=0.01, iou=0.2 (standard thresholds)
