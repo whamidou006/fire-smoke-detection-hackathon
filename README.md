@@ -181,6 +181,119 @@ runs/yolo11l_balanced/
 
 ---
 
+## Automated Hyperparameter Tuning with GPT-5
+
+The framework includes an automated hyperparameter optimization system powered by GPT-5 that iteratively trains models and refines configurations to maximize F1 score.
+
+### Quick Start
+
+```bash
+# Test run: 5 epochs × 50 iterations (~30-35 hours)
+python auto_tune_training.py --iterations 50 --epochs 5
+
+# Production run: 150 epochs × 5 iterations (~10 days)
+python auto_tune_training.py --config auto_tune_config.yaml
+```
+
+### How It Works
+
+1. **Initial Training**: Starts with a baseline configuration (e.g., "balanced")
+2. **GPT-5 Analysis**: Analyzes training metrics, identifies bottlenecks
+3. **Optimization**: Recommends improved hyperparameters based on trends
+4. **Iteration**: Trains with new config, repeats until convergence
+5. **Best Selection**: Tracks best F1 score across all iterations
+
+### Tunable Parameters (11 total)
+
+**Loss Weights:**
+- `cls` (0.1-2.0): Classification loss - higher boosts recall
+- `box` (5.0-10.0): Bounding box regression loss
+- `dfl` (1.0-2.0): Distribution focal loss
+- `fl_gamma` (0.0-2.0): Focal loss gamma - combats class imbalance
+
+**Learning Rates:**
+- `lr0` (1e-6 to 1e-3): Initial learning rate
+- `lrf` (1e-6 to 1e-4): Final learning rate factor
+
+**Augmentation:**
+- `mixup` (0.0-0.3): Mixup augmentation strength
+- `copy_paste` (0.0-0.2): Copy-paste augmentation
+- `mosaic` (0.0-1.0): Mosaic augmentation
+- `scale` (0.1-0.5): Scale augmentation range
+
+**Training Settings:**
+- `imgsz` (640, 800, 1024, 1280): Input resolution
+
+### Adaptive Batch Sizing
+
+Batch size automatically adapts based on image resolution to prevent GPU OOM:
+- `imgsz ≤ 640`: batch = 128
+- `imgsz ≤ 1024`: batch = 64
+- `imgsz > 1024`: batch = 32
+
+### Command Options
+
+```bash
+# Full command with all parameters
+python auto_tune_training.py \
+  --config auto_tune_config.yaml \
+  --model 11x \
+  --initial-config balanced \
+  --iterations 50 \
+  --epochs 5 \
+  --imgsz 640 \
+  --device 0,1
+
+# Run in background with logging
+nohup python auto_tune_training.py --iterations 50 --epochs 5 \
+  > auto_tune.log 2>&1 &
+
+# Monitor progress
+tail -f auto_tune.log
+
+# Run in screen session
+screen -S autotune
+python auto_tune_training.py --iterations 50 --epochs 5
+# Detach: Ctrl+A then D, Reattach: screen -r autotune
+```
+
+### Output Files
+
+```
+auto_tune_logs/
+└── tuning_history.json  # Complete history with all configs and metrics
+```
+
+Extract best configuration:
+```bash
+python extract_best_config.py auto_tune_logs/tuning_history.json
+```
+
+### Time Estimates
+
+**Test Run (5 epochs × 50 iterations):**
+- Per iteration: ~30-40 minutes
+- Total: ~30-35 hours (~1.5 days)
+
+**Production Run (150 epochs × 5 iterations):**
+- Per iteration: ~2 days
+- Total: ~10 days
+
+### Evaluation Thresholds
+
+All evaluations use consistent thresholds optimized for fire detection:
+- **conf=0.01**: Confidence threshold (filters weak predictions)
+- **iou=0.2**: NMS IoU threshold (low value keeps more boxes for better recall)
+
+These settings are critical for safety-critical fire detection where missing a fire is worse than a false alarm.
+
+### Configuration Files
+
+- `auto_tune_config.yaml`: GPT-5 settings, hyperparameter ranges, prompt template
+- `train_configs.yaml`: Predefined training configurations (balanced, recall_focused, etc.)
+
+---
+
 ## Dataset Details
 
 ### Fire_data_v3_with_hard_examples
