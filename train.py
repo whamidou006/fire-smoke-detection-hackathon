@@ -472,9 +472,15 @@ Use --help for full options
         # FINAL VALIDATION
         # ========================================================================
         print("\n🔍 Running final validation...")
-        metrics = model.val(data='dataset.yaml', workers=0)
+        # Use same thresholds as test.py for consistent evaluation
+        metrics = model.val(
+            data='dataset.yaml', 
+            workers=0,
+            conf=0.01,  # Match test script threshold
+            iou=0.2     # Match test script threshold (low NMS for recall)
+        )
         
-        print("\n📊 FINAL METRICS:")
+        print("\n📊 FINAL METRICS (conf=0.01, iou=0.2):")
         print(f"  • mAP@0.5:     {metrics.box.map50:.4f}")
         print(f"  • mAP@0.5-0.95: {metrics.box.map:.4f}")
         print(f"  • Precision:    {metrics.box.mp:.4f}")
