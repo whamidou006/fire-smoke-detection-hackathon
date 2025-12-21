@@ -1,50 +1,66 @@
-# Auto-Tuning Configuration
-# Configuration for automated hyperparameter tuning with GPT-5 reasoning
+# Auto-tuning configuration (YOLOv11 + GPT-5)
 
-# GPT-5 Model Configuration
-gpt5:
+llm:
   model: "gpt-5"
-  system_prompt: "You are an expert ML engineer specializing in YOLO object detection optimization. Your goal is to analyze training metrics and suggest specific hyperparameter adjustments to maximize F1 score by balancing precision and recall."
+  system_prompt: |
+    You are an expert ML engineer specializing in YOLOv11 object detection optimization.
+    Analyze training/validation metrics and recommend concrete hyperparameter changes.
+    Optimize F1 computed under FIXED evaluation thresholds (conf=0.01, iou=0.2).
+    Safety constraint: do not reduce recall vs the current run unless clearly justified.
+    Keep recommendations within valid ranges and use realistic step sizes.
   generation:
     max_new_tokens: 2000
-    temperature: 0.7
-  
-  # Prompt template for requesting hyperparameter recommendations
+    temperature: 0.3
+    top_p: 0.9
+
   tuning_prompt_template: |
-    You are an expert in YOLOv11 object detection optimization. Analyze the training results and suggest hyperparameter improvements to maximize F1 score.
-    
+    You are an expert in YOLOv11 object detection optimization. Analyze results and recommend changes.
+
+    METRICS SUMMARY (best epoch + final epoch):
     {metrics_summary}
+
+    HISTORY (per-epoch or key checkpoints):
     {history_text}
-    
-    Current Configuration:
+
+    CURRENT CONFIG:
     {current_config}
-    
+
     CONTEXT:
-    - Dataset: Fire/Smoke detection (8,466 smoke + 527 fire annotations, 94%/6% imbalanced)
+    - Task: Fire/Smoke detection (safety-critical; false negatives are most costly)
+    - Dataset: train=18,946 images (13,133 original + 1,963 FN hard positives + 3,850 FP hard negatives)
+    - Annotations: smoke=8,466, fire=527 (highly imbalanced)
     - Model: YOLOv11 anchor-free detector
-    - Goal: Maximize F1 by balancing precision/recall (safety-critical - missing fires is worst failure mode)
-    - Evaluation: conf=0.01, iou=0.2 (fixed)
-    
-    HYPERPARAMETERS (with valid ranges):
-    - cls (0.1-2.0): Classification loss weight. Higher → penalize false negatives (boost recall)
-    - box (5.0-10.0): Box regression loss weight
-    - dfl (1.0-2.0): Distribution focal loss weight
-    - fl_gamma (0.0-2.0): Focal loss gamma. 0=disabled, 0.5-1.0=moderate, >1.0=aggressive hard example focus
-    - lr0 (1e-6 to 1e-3): Initial learning rate
-    - lrf (1e-6 to 1e-4): Final learning rate factor
-    - mixup (0.0-0.3): Mixup augmentation
-    - copy_paste (0.0-0.2): Copy-paste augmentation  
-    - scale (0.1-0.5): Scale augmentation
-    - iou (0.1-0.6): NMS IoU threshold. Lower → keep more boxes (boost recall)
-    - conf (0.001-0.1): Confidence threshold. Lower → more detections (boost recall)
-    
-    TASK: Diagnose the problem, suggest specific numeric values for ALL 11 parameters, and explain your reasoning.
-    
-    Respond in this EXACT format:
-    
+    - Fixed evaluation (do not treat as tunable): conf=0.01, iou=0.2
+    - Goal: maximize fixed-eval F1 while preserving/boosting recall
+
+    TUNABLE HYPERPARAMETERS (valid ranges):
+    - cls (0.1-2.0)
+    - box (5.0-10.0)
+    - dfl (1.0-2.0)
+    - fl_gamma (0.0-2.0)
+    - lr0 (1e-6 to 1e-3)
+    - lrf (1e-6 to 1e-4)
+    - mixup (0.0-0.3)
+    - copy_paste (0.0-0.2)
+    - mosaic (0.0-1.0)
+    - scale (0.1-0.5)
+    - imgsz (640, 800, 1024, 1280)
+
+    OPTIONAL (deployment only; does NOT change fixed-eval F1):
+    - nms_iou (0.1-0.6)
+    - deploy_conf (0.001-0.1)
+
+    TASK:
+    1) Diagnose the limiting factor(s) using evidence from history (e.g., overfitting, underfitting, instability).
+    2) Provide numeric values for ALL tunable parameters (11).
+    3) Also provide deployment thresholds (nms_iou, deploy_conf) to favor recall in production.
+    4) Keep step sizes reasonable unless metrics strongly indicate otherwise.
+
+    Respond in this EXACT format (no extra text):
+
     Analysis:
-    [2-3 sentences: What's wrong? Root cause? Trends from history?]
-    
+    [2-4 sentences. Must reference at least 2 concrete observations from history.]
+
     Recommended_Changes:
     cls: [value]
     box: [value]
@@ -54,23 +70,26 @@ gpt5:
     lrf: [value]
     mixup: [value]
     copy_paste: [value]
+    mosaic: [value]
     scale: [value]
-    iou: [value]
-    conf: [value]
-    
-    Rationale:
-    [2-3 sentences: Why will these changes improve F1? Connect to the problem.]
-    
-    Expected_Improvement:
-    [Predicted F1 change and why. Be realistic: 2-8% per iteration.]
+    imgsz: [value]
 
-# Training Configuration
+    Deployment_Thresholds:
+    nms_iou: [value]
+    deploy_conf: [value]
+
+    Rationale:
+    [2-4 sentences linking changes to precision/recall and imbalance.]
+
+    Expected_Improvement:
+    [Realistic F1 delta range (e.g., +0.02 to +0.06) and what would falsify this.]
+
 training:
-  default_epochs: 150
-  timeout_seconds: 7200  # 2 hours
+  epochs: 150
+  timeout_seconds: 259200  # 72 hours (3 days) - safe buffer for 150 epochs
   results_csv_name: "results.csv"
-  
-  # Hyperparameter ranges for validation
+
+  # Ranges used to validate/clip GPT recommendations (and for optional deployment tuning)
   hyperparameter_ranges:
     cls: [0.1, 2.0]
     box: [5.0, 10.0]
@@ -80,18 +99,14 @@ training:
     lrf: [1.0e-6, 1.0e-4]
     mixup: [0.0, 0.3]
     copy_paste: [0.0, 0.2]
+    mosaic: [0.0, 1.0]
     scale: [0.1, 0.5]
-    iou: [0.1, 0.6]
-    conf: [0.001, 0.1]
+    imgsz: [640, 960, 1024, 1280]
+    nms_iou: [0.1, 0.6]
+    deploy_conf: [0.001, 0.1]
 
-# Metrics Configuration
 metrics:
-  primary_metric: "f1_score"  # Metric to optimize
-  
-  # F1 score calculation
-  f1_formula: "2 * (precision * recall) / (precision + recall)"
-  
-  # Metrics to track
+  primary_metric: "f1_score"
   tracked_metrics:
     - precision
     - recall
@@ -104,8 +119,8 @@ metrics:
     - val_box_loss
     - val_cls_loss
     - val_dfl_loss
-  
-  # CSV column mapping (from Ultralytics results.csv format)
+
+  # Ultralytics results.csv column mapping
   csv_columns:
     epoch: "epoch"
     precision: "metrics/precision(B)"
@@ -119,46 +134,41 @@ metrics:
     val_cls_loss: "val/cls_loss"
     val_dfl_loss: "val/dfl_loss"
 
-# Trend Analysis Configuration
 trend_analysis:
   enabled: true
-  early_epochs: 10  # First N epochs for comparison
-  late_epochs: 10   # Last N epochs for comparison
-  
-  # Convergence detection
-  plateau_threshold: 0.005  # F1 improvement less than this = plateau
-  plateau_epochs: 20  # Check last N epochs for plateau
+  early_epochs: 10
+  late_epochs: 10
+  plateau_threshold: 0.005
+  plateau_epochs: 20
 
-# Output Configuration
 output:
   history_filename: "tuning_history.json"
-  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  
-  # Save intermediate results
-  save_gpt5_responses: true
-  save_metrics_plots: false  # TODO: implement visualization
+  log_level: "INFO"          # DEBUG, INFO, WARNING, ERROR
+  save_llm_responses: true
+  save_metrics_plots: false  # optional / future
 
-# Dataset Context (for GPT-5 prompt)
 dataset:
   name: "Fire_data_v3_with_hard_examples_cleaned"
-  total_images: 19963
-  train_images: 18946
-  test_images: 1017
-  classes:
-    smoke:
-      count: 8466
-      percentage: 94.3
-    fire:
-      count: 527
-      percentage: 5.7
-  description: "Fire/smoke detection dataset with hard negative examples"
-  
-# Default Training Arguments
-default_args:
-  model: "11l"
+  splits:
+    total_images: 19963
+    train_images: 18946
+    test_images: 1017
+
+  # Annotation counts (not image counts)
+  annotations:
+    smoke: 8466
+    fire: 527
+
+  train_composition:
+    original_images: 13133
+    hard_positives_fn: 1963
+    hard_negatives_fp: 3850
+    total_train_images: 18946
+
+defaults:
+  model_variant: "11x"
   initial_config: "balanced"
-  iterations: 5
+  iterations: 50
   batch_size: 128
   imgsz: 640
-  device: "0"
-  epochs: 150
+  device: "0,1"

@@ -327,6 +327,20 @@ def parse_gpt5_recommendations(response: str) -> Optional[Dict]:
         return None
 
 
+def validate_config(config: Dict, ranges: Dict) -> Dict:
+    """Clip config values to valid ranges. Fast and optimized."""
+    validated = {}
+    for k, v in config.items():
+        if k in ranges:
+            r = ranges[k]
+            if isinstance(r, list) and len(r) == 2:  # [min, max]
+                v = max(r[0], min(r[1], v))
+            elif isinstance(r, list):  # Discrete values like [640, 960, 1024, 1280]
+                v = min(r, key=lambda x: abs(x - v))  # Pick closest
+        validated[k] = v
+    return validated
+
+
 def run_training(
     model: str,
     config_name: str,
@@ -351,7 +365,44 @@ def run_training(
     Returns:
         Tuple of (success, results_path)
     """
-    # Build command
+    temp_config_path = None
+    
+    # If custom config provided, create a temporary YAML config
+    if custom_config:
+        # Load base train_configs.yaml to get model definitions and other settings
+        base_config = load_config("train_configs.yaml")
+        
+        # Create a new config with GPT-5 recommendations
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        temp_config_name = f"gpt5_tuned_{timestamp}"
+        temp_config_path = f"train_configs_temp_{timestamp}.yaml"
+        
+        # Build the temporary config
+        temp_yaml_config = {
+            'models': base_config.get('models', {}),
+            'hyperparameters': {
+                **base_config.get('hyperparameters', {}),
+                temp_config_name: {
+                    'description': f'GPT-5 tuned configuration (iteration {timestamp})',
+                    **custom_config
+                }
+            },
+            'training': base_config.get('training', {}),
+            'dataset': base_config.get('dataset', {}),
+            'evaluation': base_config.get('evaluation', {}),
+        }
+        
+        # Save temporary config
+        with open(temp_config_path, 'w') as f:
+            yaml.dump(temp_yaml_config, f, default_flow_style=False, sort_keys=False)
+        
+        logger.info(f"📝 Created temporary config: {temp_config_path}")
+        logger.info(f"🔧 Custom hyperparameters: {json.dumps(custom_config, indent=2)}")
+        
+        # Update config_name to use the temporary one
+        config_name = temp_config_name
+    
+    # Build command - now much simpler, just config name
     cmd = [
         'python', 'train.py',
         '--model', model,
@@ -362,15 +413,11 @@ def run_training(
         '--epochs', str(epochs)
     ]
     
-    logger.info(f"🚀 Starting training: {' '.join(cmd)}")
+    # Add config file if using temporary config
+    if temp_config_path:
+        cmd.extend(['--train-config', temp_config_path])
     
-    # If custom config provided, temporarily modify train.py or pass as json
-    # For simplicity, we'll write it to a temp config file
-    if custom_config:
-        config_file = 'auto_tune_config.json'
-        with open(config_file, 'w') as f:
-            json.dump(custom_config, f, indent=2)
-        logger.info(f"Custom config saved to {config_file}")
+    logger.info(f"🚀 Starting training: {' '.join(cmd)}")
     
     try:
         # Run training
@@ -403,6 +450,14 @@ def run_training(
     except Exception as e:
         logger.error(f"❌ Training error: {e}")
         return False, ""
+    finally:
+        # Cleanup temporary config file
+        if temp_config_path and os.path.exists(temp_config_path):
+            try:
+                os.remove(temp_config_path)
+                logger.info(f"🗑️  Cleaned up temporary config: {temp_config_path}")
+            except Exception as e:
+                logger.warning(f"⚠️  Could not remove temporary config: {e}")
 
 
 def auto_tune_training(
@@ -535,6 +590,12 @@ def auto_tune_training(
             if not recommended_config:
                 logger.warning("⚠️ Failed to parse GPT-5 recommendations, using previous config")
                 recommended_config = custom_config or {}
+            else:
+                # Validate and clip to allowed ranges
+                ranges = yaml_config.get('training', {}).get('hyperparameter_ranges', {})
+                recommended_config = validate_config(recommended_config, ranges)
+                logger.info(f"✅ Validated {len(recommended_config)} parameters")
+
             
             # Save to history
             history.append({

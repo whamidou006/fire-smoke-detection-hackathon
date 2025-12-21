@@ -151,6 +151,7 @@ def download_model(model_name):
 
 def main():
     """Main training function with all configurations"""
+    global TRAIN_CONFIG, MODEL_CONFIGS, HYPERPARAMETER_CONFIGS
     
     # ============================================================================
     # ARGUMENT PARSING
@@ -169,6 +170,12 @@ Configs: baseline, balanced, recall_aggressive, recall_moderate, reduce_fp, high
 
 Use --help for full options
         """
+    )
+    parser.add_argument(
+        '--train-config',
+        type=str,
+        default='train_configs.yaml',
+        help='Path to training configuration YAML file (default: train_configs.yaml)'
     )
     parser.add_argument(
         '--model', '-m',
@@ -192,8 +199,7 @@ Use --help for full options
         '--config', '-c',
         type=str,
         default='baseline',
-        choices=list(HYPERPARAMETER_CONFIGS.keys()),
-        help='Hyperparameter configuration: baseline/recall_moderate/recall_aggressive/reduce_fp/balanced/high_lr (default: baseline)'
+        help='Hyperparameter configuration name (default: baseline)'
     )
     parser.add_argument(
         '--device', '-d',
@@ -201,8 +207,30 @@ Use --help for full options
         default='0',
         help='CUDA device(s): 0 or 0,1,2,3 for multi-GPU (default: 0)'
     )
+    parser.add_argument('--epochs', type=int, default=150, help='Number of training epochs (default: 150)')
+    
+    # Hyperparameter overrides (optional - will override config values if provided)
+    parser.add_argument('--cls', type=float, default=None, help='Classification loss weight (overrides config)')
+    parser.add_argument('--box', type=float, default=None, help='Box regression loss weight (overrides config)')
+    parser.add_argument('--dfl', type=float, default=None, help='Distribution focal loss weight (overrides config)')
+    parser.add_argument('--fl_gamma', type=float, default=None, help='Focal loss gamma (overrides config)')
+    parser.add_argument('--lr0', type=float, default=None, help='Initial learning rate (overrides config)')
+    parser.add_argument('--lrf', type=float, default=None, help='Final learning rate (overrides config)')
+    parser.add_argument('--mixup', type=float, default=None, help='Mixup augmentation probability (overrides config)')
+    parser.add_argument('--copy_paste', type=float, default=None, help='Copy-paste augmentation probability (overrides config)')
+    parser.add_argument('--mosaic', type=float, default=None, help='Mosaic augmentation probability (overrides config)')
+    parser.add_argument('--scale', type=float, default=None, help='Scale augmentation range (overrides config)')
     
     args = parser.parse_args()
+    
+    # ============================================================================
+    # RELOAD CONFIG IF CUSTOM PATH PROVIDED
+    # ============================================================================
+    if args.train_config != 'train_configs.yaml':
+        print(f"\n📝 Loading custom configuration from: {args.train_config}")
+        TRAIN_CONFIG = load_train_configs(args.train_config)
+        MODEL_CONFIGS = {k: (v['name'], 128) for k, v in TRAIN_CONFIG.get('models', {}).items()}
+        HYPERPARAMETER_CONFIGS = TRAIN_CONFIG.get('hyperparameters', {})
     
     # ============================================================================
     # GPU CHECK
@@ -255,10 +283,44 @@ Use --help for full options
     # ============================================================================
     # HYPERPARAMETER CONFIGURATION SELECTION
     # ============================================================================
-    hp_config = HYPERPARAMETER_CONFIGS[args.config]
+    hp_config = HYPERPARAMETER_CONFIGS[args.config].copy()  # Make a copy to allow overrides
+    
+    # Apply command-line overrides if provided
+    overrides = {}
+    if args.cls is not None:
+        hp_config['cls'] = args.cls
+        overrides['cls'] = args.cls
+    if args.box is not None:
+        hp_config['box'] = args.box
+        overrides['box'] = args.box
+    if args.dfl is not None:
+        hp_config['dfl'] = args.dfl
+        overrides['dfl'] = args.dfl
+    if args.fl_gamma is not None:
+        hp_config['fl_gamma'] = args.fl_gamma
+        overrides['fl_gamma'] = args.fl_gamma
+    if args.lr0 is not None:
+        hp_config['lr0'] = args.lr0
+        overrides['lr0'] = args.lr0
+    if args.lrf is not None:
+        hp_config['lrf'] = args.lrf
+        overrides['lrf'] = args.lrf
+    if args.mixup is not None:
+        hp_config['mixup'] = args.mixup
+        overrides['mixup'] = args.mixup
+    if args.copy_paste is not None:
+        hp_config['copy_paste'] = args.copy_paste
+        overrides['copy_paste'] = args.copy_paste
+    if args.scale is not None:
+        hp_config['scale'] = args.scale
+        overrides['scale'] = args.scale
+    
     print(f"⚙️  Hyperparameter Config: {args.config}")
     print(f"   {hp_config['description']}")
     print(f"   Loss weights: cls={hp_config['cls']}, box={hp_config['box']}, dfl={hp_config['dfl']}")
+    if overrides:
+        print(f"   🔧 Command-line overrides: {', '.join(f'{k}={v}' for k, v in overrides.items())}")
+
     
     # ============================================================================
     # DOWNLOAD MODEL IF NEEDED
@@ -312,7 +374,7 @@ Use --help for full options
         'data': 'dataset.yaml',
         
         # Training duration (extended for better convergence)
-        'epochs': 150,
+        'epochs': args.epochs,
         'patience': 0,  # Disable early stopping (0 = train all epochs)
         
         # Image and batch
@@ -357,12 +419,12 @@ Use --help for full options
         'hsv_v': aug_config['hsv_v'],       # Brightness variation
         'degrees': 0.0,      # NO rotation (smoke orientation matters!)
         'translate': 0.05,   # Minimal translation
-        'scale': aug_config['scale'],        # Scale variation
+        'scale': hp_config.get('scale', aug_config['scale']),  # Use hp_config override or default
         'shear': 0.0,        # No shear (shape matters)
         'perspective': 0.0,  # No perspective (keep natural)
         'flipud': 0.0,       # No vertical flip (smoke rises)
         'fliplr': 0.5,       # Horizontal flip only
-        'mosaic': 1.0,       # Keep mosaic (helps with context)
+        'mosaic': args.mosaic if args.mosaic is not None else hp_config.get('mosaic', 1.0),  # From args or config
         'mixup': hp_config['mixup'],        # From hyperparameter config
         'copy_paste': hp_config['copy_paste'],   # From hyperparameter config
         'erasing': 0.0,      # No random erasing (fire/smoke shouldn't disappear)
@@ -376,6 +438,10 @@ Use --help for full options
         'amp': True,         # Automatic Mixed Precision
         'fraction': 1.0,     # Use full dataset
     }
+    
+    # Add focal loss gamma if specified in config
+    if 'fl_gamma' in hp_config and hp_config['fl_gamma'] > 0:
+        config['fl_gamma'] = hp_config['fl_gamma']
     
     print(f"\n⚙️  Training Configuration:")
     print(f"  • Dataset: Fire_data_v3_with_hard_examples (18,946 train, 1,017 test)")
