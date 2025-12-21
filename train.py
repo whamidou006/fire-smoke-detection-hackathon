@@ -95,7 +95,7 @@ HYPERPARAMETER_CONFIGS = {
         'box': 7.8,       # Slightly higher than baseline
         'dfl': 1.6,
         'lr0': 1.0e-05,    # Slightly higher LR
-        'lrf': 1e-4,
+        'lrf': 1e-5,
         'mixup': 0.1,
         'copy_paste': 0.05,
         'iou': 0.2,      # Slightly lower IoU
