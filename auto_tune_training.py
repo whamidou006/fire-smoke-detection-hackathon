@@ -37,6 +37,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def get_adaptive_batch_size(imgsz: int) -> int:
+    """
+    Calculate adaptive batch size based on image resolution.
+    
+    Args:
+        imgsz: Image size (resolution)
+        
+    Returns:
+        Appropriate batch size for the given resolution
+    """
+    if imgsz <= 640:
+        return 128
+    elif imgsz <= 1024:
+        return 64
+    else:  # > 1024
+        return 32
+
+
 def load_config(config_path: str = "auto_tune_config.yaml") -> Dict:
     """
     Load configuration from YAML file.
@@ -526,13 +544,25 @@ def auto_tune_training(
             config_name = f"auto_tuned_iter{iteration}"
             custom_config = history[-1].get('recommended_config')
             logger.info(f"Using GPT-5 recommended configuration from iteration {iteration-1}")
+            
+            # If GPT-5 changed imgsz, update it for this iteration
+            if custom_config and 'imgsz' in custom_config:
+                imgsz = custom_config['imgsz']
+        
+        # Calculate adaptive batch size based on current image size
+        adaptive_batch_size = get_adaptive_batch_size(imgsz)
+        if adaptive_batch_size != batch_size:
+            logger.info(f"📦 Adaptive batch size: {adaptive_batch_size} (imgsz={imgsz}, original batch={batch_size})")
+            current_batch_size = adaptive_batch_size
+        else:
+            current_batch_size = batch_size
         
         # Run training
         success, results_path = run_training(
             model=model,
             config_name=config_name,
             custom_config=custom_config,
-            batch_size=batch_size,
+            batch_size=current_batch_size,
             imgsz=imgsz,
             device=device,
             epochs=epochs
@@ -708,6 +738,12 @@ Examples:
     imgsz = args.imgsz or defaults.get('imgsz', 640)
     device = args.device or defaults.get('device', '0')
     epochs = args.epochs or yaml_config.get('training', {}).get('default_epochs', 150)
+    
+    # Calculate adaptive batch size
+    adaptive_batch = get_adaptive_batch_size(imgsz)
+    if args.batch is None:  # Only use adaptive if batch not explicitly set
+        batch_size = adaptive_batch
+        logger.info(f"📦 Using adaptive batch size: {batch_size} (imgsz={imgsz})")
     
     logger.info(f"Configuration: model={model}, config={initial_config}, iterations={iterations}")
     logger.info(f"Training: batch={batch_size}, imgsz={imgsz}, device={device}, epochs={epochs}")
