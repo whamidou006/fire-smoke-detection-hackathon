@@ -1,0 +1,509 @@
+# Training Hyperparameter Configurations
+# All hyperparameter presets for YOLOv11 fire/smoke detection training
+
+# Model definitions
+models:
+  # YOLOv8 series
+  n: {name: "yolov8n.pt", params: "3.2M"}
+  s: {name: "yolov8s.pt", params: "11.2M"}
+  m: {name: "yolov8m.pt", params: "25.9M"}
+  l: {name: "yolov8l.pt", params: "43.7M"}
+  x: {name: "yolov8x.pt", params: "68.2M"}
+  
+  # YOLOv11 series (recommended)
+  11n: {name: "yolo11n.pt", params: "2.6M"}
+  11s: {name: "yolo11s.pt", params: "9.4M"}
+  11m: {name: "yolo11m.pt", params: "20.1M"}
+  11l: {name: "yolo11l.pt", params: "25.4M"}
+  11x: {name: "yolo11x.pt", params: "57.0M"}
+  
+  # Pretrained baseline
+  pretrain: {name: "yolov8l.pt", params: "43.7M", pretrained: true}
+
+# Dataset configuration
+dataset:
+  yaml_path: "dataset.yaml"
+  name: "Fire_data_v3_with_hard_examples_cleaned"
+  classes: 2
+  class_names: ["smoke", "fire"]
+  train_images: 18946
+  test_images: 1017
+  total_annotations: 8993
+  class_distribution:
+    smoke: {count: 8466, percentage: 94.3}
+    fire: {count: 527, percentage: 5.7}
+
+# Training settings (common across all configs)
+training:
+  epochs: 150
+  patience: 0  # No early stopping
+  save_period: 2  # Save checkpoint every 2 epochs
+  workers: 8
+  device: "0"  # Default device, can be overridden
+  project: "runs"
+  exist_ok: true
+  pretrained: true
+  verbose: true
+  seed: 42
+  deterministic: false
+  single_cls: false
+  rect: false
+  cos_lr: false
+  close_mosaic: 0
+  amp: true  # Automatic Mixed Precision
+  fraction: 1.0
+  profile: false
+  freeze: null
+  multi_scale: false
+  overlap_mask: true
+  mask_ratio: 4
+  dropout: 0.0
+  val: true
+  plots: true
+  cache: false
+
+# Hyperparameter configurations
+hyperparameters:
+  # Baseline configuration - standard YOLO settings
+  baseline:
+    description: "Standard YOLO configuration for baseline comparison"
+    cls: 0.3
+    box: 7.5
+    dfl: 1.5
+    lr0: 0.001
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.0
+    copy_paste: 0.0
+    iou: 0.5
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Recall Moderate - balanced approach
+  recall_moderate:
+    description: "Moderate recall boost with false positive reduction"
+    cls: 0.25
+    box: 8.0
+    dfl: 1.6
+    lr0: 0.001
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.1
+    copy_paste: 0.0
+    iou: 0.45
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Recall Aggressive - maximize fire detection
+  recall_aggressive:
+    description: "Aggressive recall boost for maximum fire detection"
+    cls: 0.2
+    box: 8.5
+    dfl: 1.8
+    lr0: 0.0015
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.15
+    copy_paste: 0.1
+    iou: 0.4
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Reduce False Positives
+  reduce_fp:
+    description: "Focus on reducing false positives (higher precision)"
+    cls: 0.4
+    box: 7.0
+    dfl: 1.5
+    lr0: 0.001
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.2
+    copy_paste: 0.0
+    iou: 0.55
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Balanced configuration (recommended)
+  balanced:
+    description: "Balanced recall and precision (recommended for production)"
+    cls: 0.5
+    box: 7.8
+    dfl: 1.6
+    lr0: 1.0e-5
+    lrf: 1.0e-5
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.1
+    copy_paste: 0.05
+    iou: 0.2
+    conf: 0.01
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.01
+    hsv_s: 0.5
+    hsv_v: 0.3
+    degrees: 5.0
+    translate: 0.1
+    scale: 0.2
+    shear: 2.0
+    perspective: 0.0001
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 0.5
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # High Learning Rate
+  high_lr:
+    description: "Higher learning rate for faster convergence"
+    cls: 0.25
+    box: 8.0
+    dfl: 1.6
+    lr0: 0.002
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.1
+    copy_paste: 0.0
+    iou: 0.45
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Conservative Augmentation
+  conservative_aug:
+    description: "Very conservative augmentation with minimal changes"
+    cls: 0.3
+    box: 7.5
+    dfl: 1.5
+    lr0: 0.001
+    lrf: 1.0e-6
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.0
+    copy_paste: 0.0
+    iou: 0.5
+    conf: null
+    fl_gamma: 0.0
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.005
+    hsv_s: 0.2
+    hsv_v: 0.2
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.1
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 1.0
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+  # Recall Focused (NEW - with focal loss)
+  recall_focused:
+    description: "Focus on recall with focal loss and high cls weight"
+    cls: 1.0
+    box: 7.5
+    dfl: 1.5
+    lr0: 1.0e-5
+    lrf: 1.0e-5
+    momentum: 0.937
+    weight_decay: 0.0005
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    optimizer: "AdamW"
+    mixup: 0.1
+    copy_paste: 0.05
+    iou: 0.2
+    conf: 0.01
+    fl_gamma: 0.5
+    label_smoothing: 0.0
+    nbs: 64
+    hsv_h: 0.01
+    hsv_s: 0.5
+    hsv_v: 0.3
+    degrees: 5.0
+    translate: 0.1
+    scale: 0.3
+    shear: 2.0
+    perspective: 0.0001
+    flipud: 0.0
+    fliplr: 0.5
+    bgr: 0.0
+    mosaic: 0.5
+    auto_augment: null
+    erasing: 0.4
+    crop_fraction: 1.0
+
+# Evaluation settings (consistent across all runs)
+evaluation:
+  conf_threshold: 0.01
+  iou_threshold: 0.2
+  max_det: 300
+  half: false
+  dnn: false
+  plots: true
+  save_json: false
+  save_hybrid: false
+  save_conf: false
+  save_txt: false
+  save_crop: false
+  show_labels: true
+  show_conf: true
+  vid_stride: 1
+  stream_buffer: false
+  line_width: null
+  visualize: false
+  augment: false
+  agnostic_nms: false
+  retina_masks: false
+
+# Export settings (for ONNX, TensorRT, etc.)
+export:
+  format: "onnx"
+  imgsz: [640, 640]
+  keras: false
+  optimize: false
+  half: false
+  int8: false
+  dynamic: false
+  simplify: true
+  opset: null
+  workspace: 4
+  nms: false
+  batch: 1
+
+# Logging and output
+output:
+  save_dir: "runs"
+  name: null  # Auto-generated from model and config
+  exist_ok: true
+  save_period: 2
+  cache: false
+  image_weights: false
+  device: "0"
+  batch: -1
+  imgsz: 640
+  data: "dataset.yaml"
+  hyp: null  # Will be loaded from this config
+  epochs: 150
+  patience: 0
+  resume: false
+  amp: true
+  fraction: 1.0
+  profile: false
+  freeze: null
+  lr0: null  # Loaded from hyperparameter config
+  lrf: null  # Loaded from hyperparameter config
+  momentum: null  # Loaded from hyperparameter config
+  weight_decay: null  # Loaded from hyperparameter config
+  warmup_epochs: null  # Loaded from hyperparameter config
+  warmup_momentum: null  # Loaded from hyperparameter config
+  warmup_bias_lr: null  # Loaded from hyperparameter config
+  box: null  # Loaded from hyperparameter config
+  cls: null  # Loaded from hyperparameter config
+  dfl: null  # Loaded from hyperparameter config
+  fl_gamma: null  # Loaded from hyperparameter config
+  label_smoothing: null  # Loaded from hyperparameter config
+  nbs: null  # Loaded from hyperparameter config
+  hsv_h: null  # Loaded from hyperparameter config
+  hsv_s: null  # Loaded from hyperparameter config
+  hsv_v: null  # Loaded from hyperparameter config
+  degrees: null  # Loaded from hyperparameter config
+  translate: null  # Loaded from hyperparameter config
+  scale: null  # Loaded from hyperparameter config
+  shear: null  # Loaded from hyperparameter config
+  perspective: null  # Loaded from hyperparameter config
+  flipud: null  # Loaded from hyperparameter config
+  fliplr: null  # Loaded from hyperparameter config
+  bgr: null  # Loaded from hyperparameter config
+  mosaic: null  # Loaded from hyperparameter config
+  mixup: null  # Loaded from hyperparameter config
+  copy_paste: null  # Loaded from hyperparameter config
+  auto_augment: null  # Loaded from hyperparameter config
+  erasing: null  # Loaded from hyperparameter config
+  crop_fraction: null  # Loaded from hyperparameter config
+
+# CLI argument defaults
+cli_defaults:
+  model: "11l"
+  config: "balanced"
+  batch: 128
+  imgsz: 640
+  device: "0"
+  epochs: 150
+  workers: 8
+  project: "runs"
+  name: null
+  exist_ok: true
+  pretrained: true
+  optimizer: "AdamW"
+  verbose: true
+  seed: 42
+  deterministic: false
+  single_cls: false
+  rect: false
+  cos_lr: false
+  close_mosaic: 0
+  resume: false
+  amp: true
+  fraction: 1.0
+  profile: false
+  freeze: null
+  multi_scale: false
+  overlap_mask: true
+  mask_ratio: 4
+  dropout: 0.0
+  val: true
+  split: "val"
+  save_json: false
+  save_hybrid: false
+  conf: null
+  iou: null
+  max_det: 300
+  half: false
+  dnn: false
+  plots: true
+  source: null
+  vid_stride: 1
+  stream_buffer: false
+  visualize: false
+  augment: false
+  agnostic_nms: false
+  classes: null
+  retina_masks: false
+  embed: null
+  show: false
+  save_frames: false
+  save_txt: false
+  save_conf: false
+  save_crop: false
+  show_labels: true
+  show_conf: true
+  show_boxes: true
+  line_width: null

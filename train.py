@@ -10,130 +10,47 @@ import argparse
 from pathlib import Path
 import subprocess
 import os
+import yaml
 
-# Model configurations: name -> (path, batch_size)
-# Optimized batch sizes for A100 80GB: 128 for all models, 96 for yolov8x
-MODEL_CONFIGS = {
-    'n': ('yolov8n.pt', 128),
-    's': ('yolov8s.pt', 128),
-    'm': ('yolov8m.pt', 128),
-    'l': ('yolov8l.pt', 128),
-    'x': ('yolov8x.pt', 96),
-    
-    # YOLOv11 models (latest)
-    '11n': ('yolo11n.pt', 128),
-    '11s': ('yolo11s.pt', 128),
-    '11m': ('yolo11m.pt', 128),
-    '11l': ('yolo11l.pt', 128),
-    '11x': ('yolo11x.pt', 96),
-    
-    # Pretrained model
-    'pretrain': ('/home/whamidouche/ssdprivate/datasets/fire_hackathon/fire_hackathon/weights/pretrain_yolov8.pt', 128),
-}
 
-# ============================================================================
-# HYPERPARAMETER CONFIGURATIONS
-# ============================================================================
-# Different experimental configurations to optimize recall vs precision trade-off
+def load_train_configs(config_path: str = "train_configs.yaml"):
+    """
+    Load training configurations from YAML file.
+    
+    Args:
+        config_path: Path to YAML configuration file
+        
+    Returns:
+        Configuration dictionary
+        
+    Raises:
+        FileNotFoundError: If config file not found
+        yaml.YAMLError: If config file is invalid
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"❌ Configuration file not found: {config_path}\n"
+            f"Please ensure train_configs.yaml is in the current directory."
+        )
+    
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        print(f"✅ Loaded training configurations from {config_path}")
+        return config
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(f"❌ Error parsing YAML config: {e}")
 
-HYPERPARAMETER_CONFIGS = {
-    'baseline': {
-        'description': 'Current baseline configuration',
-        'cls': 0.3,
-        'box': 7.5,
-        'dfl': 1.5,
-        'lr0': 0.001,
-        'lrf': 1e-6,
-        'mixup': 0.0,
-        'copy_paste': 0.0,
-        'iou': 0.5,       # IoU threshold for NMS
-        'conf': None,     # Confidence threshold (None = default)
-    },
-    
-    'recall_moderate': {
-        'description': 'Moderate recall boost with FP reduction',
-        'cls': 0.25,      # ↓ Lower classification penalty → more detections
-        'box': 8.0,       # ↑ Better localization → fewer false boxes
-        'dfl': 1.6,       # ↑ Better box quality
-        'lr0': 0.001,
-        'lrf': 1e-6,
-        'mixup': 0.1,     # Add mixup for hard negatives
-        'copy_paste': 0.0,
-        'iou': 0.45,      # ↓ Lower IoU (keep more detections)
-        'conf': None,
-    },
-    
-    'recall_aggressive': {
-        'description': 'Aggressive recall boost (catch more fires)',
-        'cls': 0.2,       # ↓↓ Much lower classification penalty
-        'box': 8.5,       # ↑↑ Stricter box quality
-        'dfl': 1.8,       # ↑ Higher DFL
-        'lr0': 0.0015,    # Slightly higher LR
-        'lrf': 1e-6,
-        'mixup': 0.15,    # More mixup
-        'copy_paste': 0.1,
-        'iou': 0.4,       # ↓↓ Much lower IoU
-        'conf': None,
-    },
-    
-    'reduce_fp': {
-        'description': 'Focus on reducing false positives',
-        'cls': 0.4,       # ↑ Higher classification penalty
-        'box': 7.0,       # Standard box weight
-        'dfl': 1.5,
-        'lr0': 0.001,
-        'lrf': 1e-6,
-        'mixup': 0.2,     # More mixup for FP reduction
-        'copy_paste': 0.0,
-        'iou': 0.55,      # ↑ Higher IoU (stricter NMS)
-        'conf': None,
-    },
-    
-    'balanced': {
-        'description': 'Balanced recall and precision (recommended)',
-        'cls': 0.27,      # Slightly lower than baseline
-        'box': 7.8,       # Slightly higher than baseline
-        'dfl': 1.6,
-        'lr0': 1.0e-05,    # Slightly higher LR
-        'lrf': 1e-5,
-        'mixup': 0.1,
-        'copy_paste': 0.05,
-        'iou': 0.2,      # Slightly lower IoU
-        'conf': 0.01,
-        'scale': 0.2,     # Enable multi-scale augmentation
-    },
-    
-    'high_lr': {
-        'description': 'Higher learning rate for faster convergence',
-        'cls': 0.25,
-        'box': 8.0,
-        'dfl': 1.6,
-        'lr0': 0.002,     # ↑↑ Double LR
-        'lrf': 1e-6,
-        'mixup': 0.1,
-        'copy_paste': 0.0,
-        'iou': 0.45,
-        'conf': None,
-    },
-    
-    'conservative_aug': {
-        'description': 'Very conservative augmentation with minimal changes',
-        'cls': 0.3,
-        'box': 7.5,
-        'dfl': 1.5,
-        'lr0': 0.001,
-        'lrf': 1e-6,
-        'mixup': 0.0,
-        'copy_paste': 0.0,
-        'iou': 0.5,
-        'conf': None,
-        # Augmentation overrides (applied separately)
-        'hsv_h': 0.005,   # Very minimal hue
-        'hsv_s': 0.2,     # Reduced saturation
-        'hsv_v': 0.2,     # Reduced brightness
-        'scale': 0.1,     # Minimal scale
-    },
-}
+
+# Load configurations from YAML file (required)
+TRAIN_CONFIG = load_train_configs()
+
+# Model configurations from YAML
+MODEL_CONFIGS = {k: (v['name'], 128) for k, v in TRAIN_CONFIG.get('models', {}).items()}
+
+# Hyperparameter configurations from YAML
+HYPERPARAMETER_CONFIGS = TRAIN_CONFIG.get('hyperparameters', {})
+
 
 def download_model(model_name):
     """

@@ -1,0 +1,164 @@
+# Auto-Tuning Configuration
+# Configuration for automated hyperparameter tuning with GPT-5 reasoning
+
+# GPT-5 Model Configuration
+gpt5:
+  model: "gpt-5"
+  system_prompt: "You are an expert ML engineer specializing in YOLO object detection optimization. Your goal is to analyze training metrics and suggest specific hyperparameter adjustments to maximize F1 score by balancing precision and recall."
+  generation:
+    max_new_tokens: 2000
+    temperature: 0.7
+  
+  # Prompt template for requesting hyperparameter recommendations
+  tuning_prompt_template: |
+    You are an expert in YOLOv11 object detection optimization. Analyze the training results and suggest hyperparameter improvements to maximize F1 score.
+    
+    {metrics_summary}
+    {history_text}
+    
+    Current Configuration:
+    {current_config}
+    
+    CONTEXT:
+    - Dataset: Fire/Smoke detection (8,466 smoke + 527 fire annotations, 94%/6% imbalanced)
+    - Model: YOLOv11 anchor-free detector
+    - Goal: Maximize F1 by balancing precision/recall (safety-critical - missing fires is worst failure mode)
+    - Evaluation: conf=0.01, iou=0.2 (fixed)
+    
+    HYPERPARAMETERS (with valid ranges):
+    - cls (0.1-2.0): Classification loss weight. Higher → penalize false negatives (boost recall)
+    - box (5.0-10.0): Box regression loss weight
+    - dfl (1.0-2.0): Distribution focal loss weight
+    - fl_gamma (0.0-2.0): Focal loss gamma. 0=disabled, 0.5-1.0=moderate, >1.0=aggressive hard example focus
+    - lr0 (1e-6 to 1e-3): Initial learning rate
+    - lrf (1e-6 to 1e-4): Final learning rate factor
+    - mixup (0.0-0.3): Mixup augmentation
+    - copy_paste (0.0-0.2): Copy-paste augmentation  
+    - scale (0.1-0.5): Scale augmentation
+    - iou (0.1-0.6): NMS IoU threshold. Lower → keep more boxes (boost recall)
+    - conf (0.001-0.1): Confidence threshold. Lower → more detections (boost recall)
+    
+    TASK: Diagnose the problem, suggest specific numeric values for ALL 11 parameters, and explain your reasoning.
+    
+    Respond in this EXACT format:
+    
+    Analysis:
+    [2-3 sentences: What's wrong? Root cause? Trends from history?]
+    
+    Recommended_Changes:
+    cls: [value]
+    box: [value]
+    dfl: [value]
+    fl_gamma: [value]
+    lr0: [value]
+    lrf: [value]
+    mixup: [value]
+    copy_paste: [value]
+    scale: [value]
+    iou: [value]
+    conf: [value]
+    
+    Rationale:
+    [2-3 sentences: Why will these changes improve F1? Connect to the problem.]
+    
+    Expected_Improvement:
+    [Predicted F1 change and why. Be realistic: 2-8% per iteration.]
+
+# Training Configuration
+training:
+  default_epochs: 150
+  timeout_seconds: 7200  # 2 hours
+  results_csv_name: "results.csv"
+  
+  # Hyperparameter ranges for validation
+  hyperparameter_ranges:
+    cls: [0.1, 2.0]
+    box: [5.0, 10.0]
+    dfl: [1.0, 2.0]
+    fl_gamma: [0.0, 2.0]
+    lr0: [1.0e-6, 1.0e-3]
+    lrf: [1.0e-6, 1.0e-4]
+    mixup: [0.0, 0.3]
+    copy_paste: [0.0, 0.2]
+    scale: [0.1, 0.5]
+    iou: [0.1, 0.6]
+    conf: [0.001, 0.1]
+
+# Metrics Configuration
+metrics:
+  primary_metric: "f1_score"  # Metric to optimize
+  
+  # F1 score calculation
+  f1_formula: "2 * (precision * recall) / (precision + recall)"
+  
+  # Metrics to track
+  tracked_metrics:
+    - precision
+    - recall
+    - f1_score
+    - mAP50
+    - mAP50_95
+    - train_box_loss
+    - train_cls_loss
+    - train_dfl_loss
+    - val_box_loss
+    - val_cls_loss
+    - val_dfl_loss
+  
+  # CSV column mapping (from Ultralytics results.csv format)
+  csv_columns:
+    epoch: "epoch"
+    precision: "metrics/precision(B)"
+    recall: "metrics/recall(B)"
+    mAP50: "metrics/mAP50(B)"
+    mAP50_95: "metrics/mAP50-95(B)"
+    train_box_loss: "train/box_loss"
+    train_cls_loss: "train/cls_loss"
+    train_dfl_loss: "train/dfl_loss"
+    val_box_loss: "val/box_loss"
+    val_cls_loss: "val/cls_loss"
+    val_dfl_loss: "val/dfl_loss"
+
+# Trend Analysis Configuration
+trend_analysis:
+  enabled: true
+  early_epochs: 10  # First N epochs for comparison
+  late_epochs: 10   # Last N epochs for comparison
+  
+  # Convergence detection
+  plateau_threshold: 0.005  # F1 improvement less than this = plateau
+  plateau_epochs: 20  # Check last N epochs for plateau
+
+# Output Configuration
+output:
+  history_filename: "tuning_history.json"
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  
+  # Save intermediate results
+  save_gpt5_responses: true
+  save_metrics_plots: false  # TODO: implement visualization
+
+# Dataset Context (for GPT-5 prompt)
+dataset:
+  name: "Fire_data_v3_with_hard_examples_cleaned"
+  total_images: 19963
+  train_images: 18946
+  test_images: 1017
+  classes:
+    smoke:
+      count: 8466
+      percentage: 94.3
+    fire:
+      count: 527
+      percentage: 5.7
+  description: "Fire/smoke detection dataset with hard negative examples"
+  
+# Default Training Arguments
+default_args:
+  model: "11l"
+  initial_config: "balanced"
+  iterations: 5
+  batch_size: 128
+  imgsz: 640
+  device: "0"
+  epochs: 150

@@ -92,6 +92,7 @@ python train.py --model 11l --batch 128 --config recall_aggressive
 
 **Hyperparameter Configs:**
 - `balanced` ⭐ - Optimized recall/precision (recommended)
+- `recall_focused` 🔥 - Maximize recall with focal loss (cls=1.0, fl_gamma=0.5)
 - `recall_aggressive` - Maximize fire detection
 - `reduce_fp` - Minimize false alarms
 - `baseline` - Standard configuration
@@ -145,7 +146,19 @@ names:
 - Augmentation: Conservative (no rotation/vertical flip)
 - Checkpoints: Saved every 2 epochs
 
-**Available Configs:** `baseline`, `balanced`, `recall_aggressive`, `recall_moderate`, `reduce_fp`, `high_lr`
+**Loss Balancing for Precision/Recall:**
+
+If your model converges with high precision but low recall:
+- Use `recall_focused` config: Doubles cls loss (1.0) and adds focal loss (fl_gamma=0.5)
+- Focal loss focuses on hard-to-classify examples (missed detections)
+- Higher cls weight penalizes false negatives more than false positives
+
+```bash
+# Example: Train with recall-focused configuration
+python train.py --model 11x --config recall_focused --batch 64 --imgsz 640
+```
+
+**Available Configs:** `baseline`, `balanced`, `recall_focused`, `recall_aggressive`, `recall_moderate`, `reduce_fp`, `high_lr`
 
 ---
 
