@@ -324,8 +324,11 @@ def parse_gpt5_recommendations(response: str) -> Optional[Dict]:
                     
                     # Convert to appropriate type
                     try:
+                        # Handle boolean values
+                        if value.lower() in ('true', 'false'):
+                            config[key] = value.lower() == 'true'
                         # Try float first
-                        if '.' in value or 'e-' in value.lower():
+                        elif '.' in value or 'e-' in value.lower():
                             config[key] = float(value)
                         else:
                             config[key] = int(value)
@@ -545,11 +548,9 @@ def auto_tune_training(
             custom_config = history[-1].get('recommended_config')
             logger.info(f"Using GPT-5 recommended configuration from iteration {iteration-1}")
             
-            # If GPT-5 changed imgsz, update it for this iteration
-            if custom_config and 'imgsz' in custom_config:
-                imgsz = custom_config['imgsz']
+            # Note: imgsz is now FIXED and not tunable by GPT-5
         
-        # Calculate adaptive batch size based on current image size
+        # Calculate adaptive batch size based on current image size (fixed)
         adaptive_batch_size = get_adaptive_batch_size(imgsz)
         if adaptive_batch_size != batch_size:
             logger.info(f"📦 Adaptive batch size: {adaptive_batch_size} (imgsz={imgsz}, original batch={batch_size})")

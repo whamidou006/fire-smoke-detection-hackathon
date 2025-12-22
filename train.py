@@ -396,9 +396,11 @@ Use --help for full options
         'optimizer': 'AdamW',
         'lr0': hp_config['lr0'],        # From hyperparameter config
         'lrf': hp_config['lrf'],        # From hyperparameter config
-        'weight_decay': 0.0005,  # Regularization (balanced)
+        'weight_decay': hp_config.get('weight_decay', 0.0005),  # L2 regularization
+        'cos_lr': hp_config.get('cos_lr', False),  # Cosine LR scheduler
         'warmup_epochs': 5,    # Longer warmup
         'warmup_momentum': 0.8,
+        'warmup_bias_lr': hp_config.get('warmup_bias_lr', 0.1),  # Bias warmup LR
         
         # Loss weights (from selected hyperparameter configuration)
         'cls': hp_config['cls'],   # Classification loss weight
@@ -446,7 +448,9 @@ Use --help for full options
     print(f"\n⚙️  Training Configuration:")
     print(f"  • Dataset: Fire_data_v3_with_hard_examples (18,946 train, 1,017 test)")
     print(f"  • Epochs: {config['epochs']} (patience: {config['patience']})")
-    print(f"  • Optimizer: {config['optimizer']} (lr={config['lr0']})")
+    print(f"  • Optimizer: {config['optimizer']} (lr={config['lr0']}, lrf={config['lrf']})")
+    print(f"  • Weight decay: {config['weight_decay']}, Cosine LR: {config['cos_lr']}")
+    print(f"  • Warmup: {config['warmup_epochs']} epochs, bias_lr: {config['warmup_bias_lr']}")
     print(f"  • Config: {args.config} - {hp_config['description']}")
     print(f"  • Loss weights: cls={config['cls']}, box={config['box']}, dfl={config['dfl']}")
     print(f"  • NMS IoU threshold: {config['iou']}")

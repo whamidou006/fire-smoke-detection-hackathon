@@ -40,21 +40,23 @@ llm:
     - fl_gamma (0.0-2.0)
     - lr0 (1e-6 to 1e-3)
     - lrf (1e-6 to 1e-4)
+    - weight_decay (0.0-0.001)
+    - cos_lr (True/False)
+    - hsv_h (0.0-0.1)
+    - warmup_bias_lr (0.0-0.2)
     - mixup (0.0-0.3)
     - copy_paste (0.0-0.2)
     - mosaic (0.0-1.0)
     - scale (0.1-0.5)
-    - imgsz (640, 800, 1024, 1280)
 
-    OPTIONAL (deployment only; does NOT change fixed-eval F1):
-    - nms_iou (0.1-0.6)
-    - deploy_conf (0.001-0.1)
+    FIXED DEPLOYMENT PARAMETERS (not tunable):
+    - nms_iou: 0.2 (fixed NMS threshold)
+    - deploy_conf: 0.01 (fixed confidence threshold)
 
     TASK:
     1) Diagnose the limiting factor(s) using evidence from history (e.g., overfitting, underfitting, instability).
-    2) Provide numeric values for ALL tunable parameters (11).
-    3) Also provide deployment thresholds (nms_iou, deploy_conf) to favor recall in production.
-    4) Keep step sizes reasonable unless metrics strongly indicate otherwise.
+    2) Provide numeric values for ALL tunable parameters (14).
+    3) Keep step sizes reasonable unless metrics strongly indicate otherwise.
 
     Respond in this EXACT format (no extra text):
 
@@ -68,15 +70,14 @@ llm:
     fl_gamma: [value]
     lr0: [value]
     lrf: [value]
+    weight_decay: [value]
+    cos_lr: [true/false]
+    hsv_h: [value]
+    warmup_bias_lr: [value]
     mixup: [value]
     copy_paste: [value]
     mosaic: [value]
     scale: [value]
-    imgsz: [value]
-
-    Deployment_Thresholds:
-    nms_iou: [value]
-    deploy_conf: [value]
 
     Rationale:
     [2-4 sentences linking changes to precision/recall and imbalance.]
@@ -97,13 +98,17 @@ training:
     fl_gamma: [0.0, 2.0]
     lr0: [1.0e-6, 1.0e-3]
     lrf: [1.0e-6, 1.0e-4]
+    weight_decay: [0.0, 0.001]
+    cos_lr: [true, false]
+    hsv_h: [0.0, 0.1]
+    warmup_bias_lr: [0.0, 0.2]
     mixup: [0.0, 0.3]
     copy_paste: [0.0, 0.2]
     mosaic: [0.0, 1.0]
     scale: [0.1, 0.5]
-    imgsz: [640, 960, 1024, 1280]
-    nms_iou: [0.1, 0.6]
-    deploy_conf: [0.001, 0.1]
+    # imgsz is now FIXED at 640 (not tunable)
+    # nms_iou is now FIXED at 0.2 (not tunable)
+    # deploy_conf is now FIXED at 0.01 (not tunable)
 
 metrics:
   primary_metric: "f1_score"
@@ -171,5 +176,7 @@ defaults:
   iterations: 50
   batch_size: 128  # Note: Auto-tuning uses adaptive batch sizing based on imgsz
                    # ≤640: batch=128, ≤1024: batch=64, >1024: batch=32
-  imgsz: 640
+  imgsz: 640       # FIXED - not tunable by GPT-5
+  nms_iou: 0.2     # FIXED - NMS threshold for deployment
+  deploy_conf: 0.01  # FIXED - confidence threshold for deployment
   device: "0,1"
