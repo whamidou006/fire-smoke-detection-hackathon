@@ -105,11 +105,11 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     if best_map_epoch != best_f1_epoch:
         print(f"  • Best mAP: Epoch {best_map_epoch}, mAP@0.5={best_map:.4f} (different from best F1)")
     
-    # Create figure
-    fig = plt.figure(figsize=(18, 12))
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+    # Create figure with 4 rows instead of 3
+    fig = plt.figure(figsize=(18, 16))
+    gs = fig.add_gridspec(4, 3, hspace=0.3, wspace=0.3)
     
-    fig.suptitle('Training Performance Analysis - Fire/Smoke Detection\nwith Baseline Comparisons',
+    fig.suptitle(f'Training Performance Analysis - Fire/Smoke Detection\nBest Model: Epoch {best_f1_epoch} (F1={best_f1:.4f}, mAP={best_f1_map:.4f})',
                  fontsize=16, fontweight='bold')
     
     # Colors for baselines
@@ -138,8 +138,10 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     
     # Target and current marker
     ax1.axhline(y=0.60, color='g', linestyle=':', linewidth=2, alpha=0.5, label='Target (0.60)')
+    ax1.axvline(x=best_f1_epoch, color='green', linestyle='--', linewidth=2.5, alpha=0.7,
+               label=f'Best Model (ep {best_f1_epoch}, F1={best_f1:.3f})')
     ax1.axvline(x=current_epoch, color='purple', linestyle=':', alpha=0.5,
-               label=f'Current (epoch {current_epoch})')
+               label=f'Current (ep {current_epoch})')
     
     ax1.set_xlabel('Epoch', fontsize=11)
     ax1.set_ylabel('mAP@0.5', fontsize=11)
@@ -191,7 +193,8 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     ax3.plot(df['epoch'], df['train/box_loss'], 'b-', alpha=0.7, linewidth=2, label='Box Loss')
     ax3.plot(df['epoch'], df['train/cls_loss'], 'r-', alpha=0.7, linewidth=2, label='Classification Loss')
     ax3.plot(df['epoch'], df['train/dfl_loss'], 'g-', alpha=0.7, linewidth=2, label='DFL Loss')
-    ax3.axvline(x=current_epoch, color='orange', linestyle=':', alpha=0.5)
+    ax3.axvline(x=current_epoch, color='orange', linestyle=':', alpha=0.5, label=f'Current (ep {current_epoch})')
+    ax3.axvline(x=best_f1_epoch, color='green', linestyle='--', alpha=0.7, linewidth=2, label=f'Best Model (ep {best_f1_epoch})')
     
     ax3.set_xlabel('Epoch', fontsize=11)
     ax3.set_ylabel('Loss', fontsize=11)
@@ -200,9 +203,43 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
     ax3.grid(True, alpha=0.3)
     
     # ========================================================================
-    # Plot 4: Bar Chart Comparison
+    # Plot 3.5: Learning Rate Schedule (NEW - spans all 3 columns)
     # ========================================================================
-    ax4 = fig.add_subplot(gs[2, 0])
+    ax3_5 = fig.add_subplot(gs[2, :])
+    
+    # Check which learning rate columns are available
+    lr_columns = [col for col in df.columns if col.startswith('lr/')]
+    
+    if lr_columns:
+        # Plot all learning rate parameter groups
+        colors_lr = ['blue', 'red', 'green']
+        for idx, lr_col in enumerate(lr_columns):
+            color = colors_lr[idx % len(colors_lr)]
+            label = lr_col.replace('lr/', 'LR ').upper()
+            ax3_5.plot(df['epoch'], df[lr_col], color=color, alpha=0.7, linewidth=2, label=label)
+        
+        # Mark best epoch
+        ax3_5.axvline(x=best_f1_epoch, color='green', linestyle='--', alpha=0.7, linewidth=2, 
+                     label=f'Best Model (ep {best_f1_epoch})')
+        ax3_5.axvline(x=current_epoch, color='orange', linestyle=':', alpha=0.5, 
+                     label=f'Current (ep {current_epoch})')
+        
+        ax3_5.set_xlabel('Epoch', fontsize=11)
+        ax3_5.set_ylabel('Learning Rate', fontsize=11)
+        ax3_5.set_title('Learning Rate Schedule', fontsize=13, fontweight='bold')
+        ax3_5.legend(fontsize=10, loc='best')
+        ax3_5.grid(True, alpha=0.3)
+        ax3_5.set_yscale('log')  # Log scale for better visualization
+    else:
+        # If no LR columns, show a message
+        ax3_5.text(0.5, 0.5, 'Learning Rate data not available in results.csv', 
+                  ha='center', va='center', fontsize=12, transform=ax3_5.transAxes)
+        ax3_5.axis('off')
+    
+    # ========================================================================
+    # Plot 4: Bar Chart Comparison (moved to row 4)
+    # ========================================================================
+    ax4 = fig.add_subplot(gs[3, 0])
     
     models = ['Your Model\n(Current)', 'Your Model\n(Best)']
     scores = [current_map, best_map]
@@ -229,9 +266,9 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
                 f'{height:.4f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
     
     # ========================================================================
-    # Plot 5: Metrics Table
+    # Plot 5: Metrics Table (moved to row 4)
     # ========================================================================
-    ax5 = fig.add_subplot(gs[2, 1])
+    ax5 = fig.add_subplot(gs[3, 1])
     ax5.axis('off')
     
     text = "METRICS COMPARISON\n" + "="*50 + "\n\n"
@@ -265,9 +302,9 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
     
     # ========================================================================
-    # Plot 6: Summary Statistics
+    # Plot 6: Summary Statistics (moved to row 4)
     # ========================================================================
-    ax6 = fig.add_subplot(gs[2, 2])
+    ax6 = fig.add_subplot(gs[3, 2])
     ax6.axis('off')
     
     # Calculate improvements based on F1 score
@@ -293,9 +330,16 @@ def create_visualization(results_csv, output_path, baselines, show_baselines=Tru
 TRAINING STATUS
 
 Epoch: {current_epoch}/150 ({current_epoch/150*100:.1f}%)
-Best:  ep {best_f1_epoch}
-  F1:   {best_f1:.4f}
+
+🏆 BEST MODEL: Epoch {best_f1_epoch}
+  F1:   {best_f1:.4f} ⭐
   mAP:  {best_f1_map:.4f}
+  Prec: {best_prec:.4f}
+  Rec:  {best_rec:.4f}
+
+Current (ep {current_epoch}):
+  F1:   {current_f1:.4f}
+  mAP:  {current_map:.4f}
 
 Improvement from start:
   F1:   +{f1_improvement:.1f}%
