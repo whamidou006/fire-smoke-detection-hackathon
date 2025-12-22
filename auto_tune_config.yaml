@@ -27,8 +27,8 @@ llm:
 
     CONTEXT:
     - Task: Fire/Smoke detection (safety-critical; false negatives are most costly)
-    - Dataset: train=18,946 images (13,133 original + 1,963 FN hard positives + 3,850 FP hard negatives)
-    - Annotations: smoke=8,466, fire=527 (highly imbalanced)
+    - Dataset: train=18,885 images (13,133 original + 1,963 FN hard positives + 3,789 FP hard negatives)
+    - Annotations: smoke=8,460, fire=527 (highly imbalanced)
     - Model: YOLOv11 anchor-free detector
     - Fixed evaluation (do not treat as tunable): conf=0.01, iou=0.2
     - Goal: maximize fixed-eval F1 while preserving/boosting recall
@@ -153,22 +153,22 @@ output:
   save_metrics_plots: false  # optional / future
 
 dataset:
-  name: "Fire_data_v3_with_hard_examples_cleaned"
+  name: "Fire_data_v3_with_hard_examples"
   splits:
-    total_images: 19963
-    train_images: 18946
-    test_images: 1017
+    total_images: 19900          # Corrected: 18,885 + 1,015
+    train_images: 18885          # Corrected from 18,946
+    test_images: 1015            # Corrected from 1,017
 
   # Annotation counts (not image counts)
   annotations:
-    smoke: 8466
-    fire: 527
+    smoke: 8460                  # Corrected: 7,905 train + 555 test
+    fire: 527                    # Correct: 492 train + 35 test
 
   train_composition:
-    original_images: 13133
-    hard_positives_fn: 1963
-    hard_negatives_fp: 3850
-    total_train_images: 18946
+    original_images: 13133       # Correct
+    hard_positives_fn: 1963      # Correct
+    hard_negatives_fp: 3789      # Corrected from 3,850
+    total_train_images: 18885    # Corrected from 18,946
 
 defaults:
   model_variant: "11x"
