@@ -171,7 +171,7 @@ dataset:
     total_train_images: 18885    # Corrected from 18,946
 
 defaults:
-  model_variant: "11x"
+  model_variant: "11l"
   initial_config: "balanced"
   iterations: 50
   batch_size: 128  # Note: Auto-tuning uses adaptive batch sizing based on imgsz
